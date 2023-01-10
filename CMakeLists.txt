@@ -77,18 +77,6 @@ set(
 )
 mark_as_advanced(QX_PYTHON_EXT)
 
-option(
-    QX_USE_OPENMP
-    "Whether OpenMP should be used"
-    ON
-)
-mark_as_advanced(QX_USE_OPENMP)
-
-if(APPLE AND QX_USE_OPENMP)
-    message(WARNING "OpenMP unsupported on MacOS, deactivating")
-    set(QX_USE_OPENMP OFF)
-endif()
-
 #=============================================================================#
 # CMake weirdness and compatibility                                           #
 #=============================================================================#
@@ -138,22 +126,14 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 # or as a static library based on BUILD_SHARED_LIBS; add_library switches
 # automatically.
 add_library(qx
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/core/register.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/core/linalg.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/core/gaussian.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/xpu/complex.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Core.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/SimulationResult.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Circuit.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Qxelarator.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Random.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Simulator.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/LibqasmInterface.cc"
 )
-
-# This definition is used to define QX_DECLSPEC for __declspec. More info:
-# https://docs.microsoft.com/en-us/cpp/cpp/declspec?view=vs-2019
-target_compile_definitions(qx PRIVATE BUILDING_QX)
-
-# FIXME: these should be removed or added to a global config header file!
-target_compile_definitions(qx PUBLIC XPU_TIMER CG_BC QX_SPARSE_MV_MUL __BUILTIN_LINALG__)
-
-if(QX_USE_OPENMP)
-    target_compile_definitions(qx PUBLIC USE_OPENMP)
-endif()
 
 # Add the src directory as a private include path and include as the public
 # include path.
@@ -218,29 +198,22 @@ endif()
 # Configure, build, and link dependencies                                     #
 #=============================================================================#
 
-# OpenMP
-if(QX_USE_OPENMP)
-    find_package(OpenMP REQUIRED)
-    target_link_libraries(qx PUBLIC OpenMP::OpenMP_CXX)
-endif()
-
 # libqasm
 option(LIBQASM_COMPAT "" ON)
 add_subdirectory(deps/libqasm)
 target_link_libraries(qx PUBLIC cqasm)
 
-# winsock
-if(WIN32)
-    target_link_libraries(qx PUBLIC wsock32 ws2_32)
-endif()
-
+# abseil-cpp flat_hash_map
+set(ABSL_PROPAGATE_CXX_STD ON)
+add_subdirectory(deps/abseil-cpp)
+target_link_libraries(qx PUBLIC absl::flat_hash_map)
 
 #=============================================================================#
 # Executables                                                                 #
 #=============================================================================#
 
 # qx-simulator
-add_executable("qx-simulator" "${CMAKE_CURRENT_SOURCE_DIR}/src/qx-simulator/simulator.cc")
+add_executable("qx-simulator" "${CMAKE_CURRENT_SOURCE_DIR}/src/qx-simulator/Simulator.cc")
 target_link_libraries(qx-simulator qx)
 
 #=============================================================================#

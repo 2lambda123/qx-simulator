@@ -20,19 +20,19 @@ TEST_CASE_FIXTURE(DenseUnitaryMatrixTest, "Identity") {
 }
 
 TEST_CASE_FIXTURE(DenseUnitaryMatrixTest, "Reject non-unitary matrices") {
-    DenseUnitaryMatrix<2>::Matrix nonUnitary1({{{1, 0}, {0, 1.1}}});
+    DenseUnitaryMatrix<2>::UnderlyingT nonUnitary1({{{1, 0}, {0, 1.1}}});
 
     CHECK_THROWS_WITH(
         [&nonUnitary1] { DenseUnitaryMatrix<2> test(nonUnitary1); }(),
         "Matrix is not unitary");
 
-    DenseUnitaryMatrix<2>::Matrix nonUnitary2({{{0, 0}, {0, 1}}});
+    DenseUnitaryMatrix<2>::UnderlyingT nonUnitary2({{{0, 0}, {0, 1}}});
 
     CHECK_THROWS_WITH(
         [&nonUnitary2] { DenseUnitaryMatrix<2> test(nonUnitary2); }(),
         "Matrix is not unitary");
 
-    DenseUnitaryMatrix<3>::Matrix nonUnitary3(
+    DenseUnitaryMatrix<3>::UnderlyingT nonUnitary3(
         {{{1i, 0, 0}, {0, 1i, 1i}, {0, 1, 0}}});
 
     CHECK_THROWS_WITH(

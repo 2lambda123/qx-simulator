@@ -1,6 +1,8 @@
 #pragma once
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/btree_set.h"
+#include "absl/container/inlined_vector.h"
 #include <cassert>
 #include <complex>
 #include <limits>
@@ -24,41 +26,47 @@ struct QubitIndex {
     std::size_t value;
 };
 
-template <std::size_t N> class DenseUnitaryMatrix {
+template <std::size_t N> class DenseMatrix {
 public:
-    using Matrix = std::array<std::array<std::complex<double>, N>, N>;
+    using UnderlyingT = std::array<std::array<std::complex<double>, N>, N>;
 
-    static constexpr DenseUnitaryMatrix<N> identity() {
-        Matrix m;
+    static constexpr DenseMatrix<N> identity() {
+        UnderlyingT m;
         for (std::size_t i = 0; i < N; ++i) {
             for (std::size_t j = 0; j < N; ++j) {
                 m[i][j] = (i == j) ? 1 : 0;
             }
         }
 
-        return DenseUnitaryMatrix(m, false);
+        return DenseMatrix(m);
     }
 
-    explicit constexpr DenseUnitaryMatrix(Matrix const &m)
-        : DenseUnitaryMatrix(m, true) {}
+    constexpr DenseMatrix() : matrix() {};
+
+    explicit constexpr DenseMatrix(UnderlyingT const &m)
+        : matrix(m) {}
 
     inline constexpr std::complex<double> at(std::size_t i,
                                              std::size_t j) const {
         return matrix[i][j];
     }
 
-    constexpr DenseUnitaryMatrix<N> dagger() const {
-        Matrix m;
+    inline constexpr std::complex<double>& at(std::size_t i, std::size_t j) {
+        return matrix[i][j];
+    }
+
+    constexpr DenseMatrix<N> dagger() const {
+        UnderlyingT m;
         for (std::size_t i = 0; i < N; ++i) {
             for (std::size_t j = 0; j < N; ++j) {
                 m[i][j] = std::conj(at(j, i));
             }
         }
 
-        return DenseUnitaryMatrix(m, false);
+        return DenseMatrix(m);
     }
 
-    constexpr bool operator==(DenseUnitaryMatrix<N> const &other) const {
+    constexpr bool operator==(DenseMatrix<N> const &other) const {
         for (std::size_t i = 0; i < N; ++i) {
             for (std::size_t j = 0; j < N; ++j) {
                 if (isNotNull(at(i, j) - other.at(i, j))) {
@@ -69,9 +77,9 @@ public:
         return true;
     }
 
-    constexpr DenseUnitaryMatrix<N>
-    operator*(DenseUnitaryMatrix<N> const &other) const {
-        Matrix m;
+    constexpr DenseMatrix<N>
+    operator*(DenseMatrix<N> const &other) const {
+        UnderlyingT m;
         for (std::size_t i = 0; i < N; ++i) {
             for (std::size_t j = 0; j < N; ++j) {
                 m[i][j] = 0;
@@ -81,24 +89,65 @@ public:
             }
         }
 
-        return DenseUnitaryMatrix(m, false);
+        return DenseMatrix(m);
     }
 
-private:
-    constexpr DenseUnitaryMatrix(Matrix const &m, bool checkIsUnitary)
-        : matrix(m) {
-        if (checkIsUnitary) {
-            checkUnitary();
+    constexpr void
+    operator+=(DenseMatrix<N> const &other) {
+        for (std::size_t i = 0; i < N; ++i) {
+            for (std::size_t j = 0; j < N; ++j) {
+                at(i, j) += other.at(i, j);
+            }
         }
     }
 
-    constexpr void checkUnitary() const {
-        if (!(*this * dagger() == identity())) {
-            throw std::runtime_error("Matrix is not unitary");
-        };
+private:
+    std::array<std::array<std::complex<double>, N>, N> matrix;
+};
+
+template <std::size_t N>
+void operator<<(std::ostream &os, DenseMatrix<N> const &m) {
+    for (std::size_t i = 0; i < N; ++i) {
+        bool first = true;
+        for (std::size_t j = 0; j < N; ++j) {
+            if (!first) {
+                os << "  ";
+            } else {
+                first = false;
+            }
+
+            os << m.at(i, j);
+        }
+        os << std::endl;
+    }
+}
+
+template <std::size_t N>
+constexpr DenseMatrix<N> operator*(double d, DenseMatrix<N> m) {
+    for (std::size_t i = 0; i < N; ++i) {
+        for (std::size_t j = 0; j < N; ++j) {
+            m.at(i, j) *= d;
+        }
     }
 
-    std::array<std::array<std::complex<double>, N>, N> const matrix;
+    return m;
+}
+
+template <std::size_t N> class DenseUnitaryMatrix : public DenseMatrix<N> {
+public:
+    explicit constexpr DenseUnitaryMatrix(typename DenseMatrix<N>::UnderlyingT const &m)
+        : DenseMatrix<N>(m) {
+            if (!(*this * DenseMatrix<N>::dagger() == DenseMatrix<N>::identity())) {
+                throw std::runtime_error("Matrix is not unitary");
+            };
+    }
+
+    constexpr DenseUnitaryMatrix(DenseMatrix<N> const &m)
+        : DenseMatrix<N>(m) {
+            if (!(*this * DenseMatrix<N>::dagger() == DenseMatrix<N>::identity())) {
+                throw std::runtime_error("Matrix is not unitary");
+            };
+    }
 };
 
 class QuantumState;
@@ -303,6 +352,164 @@ private:
     std::size_t const numberOfQubits = 1;
     SparseArray data;
     BasisVector measurementRegister{};
+};
+
+class StatisticalEnsemble {
+public:
+    template <std::size_t NumberOfOperands>
+    static bool areValidKrausOperators(std::initializer_list<DenseMatrix<1 << NumberOfOperands>> krausOperators) {
+        // Check completeness condition.
+        DenseMatrix<1 << NumberOfOperands> sum;
+        for (auto const& m: krausOperators) {
+            sum += m.dagger() * m;
+        }
+        return sum == DenseMatrix<1 << NumberOfOperands>::identity();
+    }
+
+    StatisticalEnsemble(std::size_t n) : numberOfQubits(n), ensembleSize(1) {
+        data.insert({KeyT{.basisVector = BasisVector(), .ensembleIndex = 0}, 1.});
+    }
+
+    constexpr bool operator==(StatisticalEnsemble const &other) const {
+        return numberOfQubits == other.numberOfQubits && ensembleSize == other.ensembleSize && data == other.data; // FIXME
+    }
+
+    template <std::size_t NumberOfOperands>
+    void applyKrausOperators(std::initializer_list<DenseMatrix<1 << NumberOfOperands>> krausOperators, std::array<QubitIndex, NumberOfOperands> const &operands) {
+        assert(isConsistent());
+
+        assert(areValidKrausOperators<NumberOfOperands>(krausOperators) && "Kraus operators don't satisfy completeness constraint");
+
+        UnderlyingT newData;
+
+        std::size_t operatorIndex = 0;
+        for (auto krausOperatorIt = krausOperators.begin(); krausOperatorIt != krausOperators.end(); ++krausOperatorIt) {
+            for (auto const& [key, amplitude]: data) {
+                auto const& [basisVector, ensembleIndex] = key;
+
+                utils::Bitset<NumberOfOperands> reducedBasisVector;
+                for (std::size_t i = 0; i < NumberOfOperands; ++i) {
+                    reducedBasisVector.set(i, basisVector.test(operands[NumberOfOperands - i - 1].value));
+                }
+
+                for (std::size_t i = 0; i < (1 << NumberOfOperands); ++i) {
+                    auto const& krausValue = krausOperatorIt->at(i, reducedBasisVector.toSizeT());
+
+                    if (krausValue == 0.) { // No fancy double comparison here.
+                        continue;
+                    }
+                    
+                    std::complex<double> addedValue = amplitude * krausValue;
+
+                    auto modifiedBasisVector = basisVector;
+
+                    for (std::size_t k = 0; k < NumberOfOperands; ++k) {
+                        modifiedBasisVector.set(operands[NumberOfOperands - k - 1].value,
+                                    utils::getBit(i, k));
+                    }
+
+                    auto it = newData.try_emplace({ .basisVector = modifiedBasisVector, .ensembleIndex = ensembleIndex * krausOperators.size() + operatorIndex }, 0);
+                    it.first->second += addedValue;
+                }
+            }
+            
+            ++operatorIndex;
+        }
+
+        ensembleSize = ensembleSize * krausOperators.size(); // FIXME: way to diminish this.
+        data.swap(newData);
+    }
+
+    template <std::size_t NumberOfOperands>
+    absl::InlinedVector<double, 2> applyKrausOperatorsGetOutcomeProbabilities(std::initializer_list<DenseMatrix<1 << NumberOfOperands>> krausOperators, std::array<QubitIndex, NumberOfOperands> const &operands) {
+        applyKrausOperators(krausOperators, operands);
+
+        absl::InlinedVector<double, 2> result(krausOperators.size(), 0.);
+
+        for (auto const& [key, complexAmplitude]: data) {
+            auto const& ensembleIndex = key.ensembleIndex;
+
+            result[ensembleIndex % krausOperators.size()] += std::norm(complexAmplitude);
+        }
+
+        return result;
+    }
+
+    std::size_t getEnsembleSize() const {
+        return ensembleSize;
+    }
+
+    void shrink();
+
+    template <std::size_t N>
+    DenseMatrix<N> testToDensityMatrix() const {
+        if (1 << numberOfQubits != N) {
+            throw std::runtime_error("Density matrix size must match number of qubits");
+        }
+
+        DenseMatrix<N> result;
+
+        for (std::size_t k = 0; k < ensembleSize; ++k) {
+            for (std::size_t i = 0; i < N; ++i) {
+                auto row = data.find(KeyT{BasisVector(i), k});
+                if (row == data.end()) {
+                    continue;
+                }
+
+                for (std::size_t j = 0; j < N; ++j) {
+                    auto column = data.find(KeyT{BasisVector(j), k});
+                    if (column == data.end()) {
+                        continue;
+                    }
+
+                    result.at(i, j) += row->second * std::conj(column->second);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    template <std::size_t N>
+    std::vector<std::array<std::complex<double>, N>> testToMatrix() const {
+        if (1 << numberOfQubits != N) {
+            throw std::runtime_error("Density matrix size must match number of qubits");
+        }
+
+        std::vector<std::array<std::complex<double>, N>> result(ensembleSize, std::array<std::complex<double>, N>());
+        
+        for (auto const& [key, complexAmplitude]: data) {
+            auto const& [basisVector, ensembleIndex] = key;
+            assert(ensembleIndex < ensembleSize);
+            result[ensembleIndex][basisVector.toSizeT()] = complexAmplitude;
+        }
+
+        return result;
+    }
+
+private:
+    struct KeyT {
+        BasisVector basisVector;
+        std::size_t ensembleIndex = 0;
+        
+        template <typename H> friend H AbslHashValue(H h, KeyT const &key) {
+            return H::combine(std::move(h), key.basisVector, key.ensembleIndex);
+        }
+
+        bool operator==(KeyT const& other) const {
+            return ensembleIndex == other.ensembleIndex && basisVector == other.basisVector;
+        }
+    };
+
+    using UnderlyingT = absl::flat_hash_map<KeyT, std::complex<double>>;
+
+    bool isConsistent();
+    
+    void shrinkImpl(std::size_t minimumEnsembleIndex, absl::btree_set<BasisVector> &possibleKets);
+
+    UnderlyingT data;
+    std::size_t const numberOfQubits = 1;
+    std::size_t ensembleSize = 1;
 };
 
 } // namespace core

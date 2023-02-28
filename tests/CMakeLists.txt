@@ -12,6 +12,9 @@ target_link_libraries(SparseArrayTest PRIVATE doctest)
 add_qx_test(QuantumStateTest QuantumStateTest.cpp .)
 target_link_libraries(QuantumStateTest PRIVATE doctest)
 
+add_qx_test(StatisticalEnsembleTest StatisticalEnsembleTest.cpp .)
+target_link_libraries(StatisticalEnsembleTest PRIVATE doctest)
+
 add_qx_test(ErrorModelsTest ErrorModelsTest.cpp .)
 target_link_libraries(ErrorModelsTest PRIVATE doctest)
 

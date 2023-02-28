@@ -40,6 +40,12 @@ public:
         }
     }
 
+    Bitset(std::size_t s) {
+        static_assert(NumberOfBits <= BITS_IN_SIZE_T);
+        assert(NumberOfBits == BITS_IN_SIZE_T || (s >> NumberOfBits) == 0);
+        data[0] = s;
+    }
+
     inline void reset() { data = {}; }
 
     inline bool test(std::size_t index) const {

@@ -382,9 +382,9 @@ public:
 
         UnderlyingT newData;
 
-        std::size_t operatorIndex = 0;
-        for (auto krausOperatorIt = krausOperators.begin(); krausOperatorIt != krausOperators.end(); ++krausOperatorIt) {
-            for (auto const& [key, amplitude]: data) {
+        for (auto const& [key, amplitude]: data) {
+            std::size_t operatorIndex = 0;
+            for (auto krausOperatorIt = krausOperators.begin(); krausOperatorIt != krausOperators.end(); ++krausOperatorIt) {
                 auto const& [basisVector, ensembleIndex] = key;
 
                 utils::Bitset<NumberOfOperands> reducedBasisVector;
@@ -411,12 +411,12 @@ public:
                     auto it = newData.try_emplace({ .basisVector = modifiedBasisVector, .ensembleIndex = ensembleIndex * krausOperators.size() + operatorIndex }, 0);
                     it.first->second += addedValue;
                 }
+
+                ++operatorIndex;
             }
-            
-            ++operatorIndex;
         }
 
-        ensembleSize = ensembleSize * krausOperators.size(); // FIXME: way to diminish this.
+        ensembleSize = ensembleSize * krausOperators.size();
         data.swap(newData);
     }
 
@@ -426,7 +426,7 @@ public:
 
         absl::InlinedVector<double, 2> result(krausOperators.size(), 0.);
 
-        for (auto const& [key, complexAmplitude]: data) {
+        for (auto const& [key, complexAmplitude]: data) { // FIXME: this relies on the assignation of ensemble indices by applyKrausOperators...
             auto const& ensembleIndex = key.ensembleIndex;
 
             result[ensembleIndex % krausOperators.size()] += std::norm(complexAmplitude);

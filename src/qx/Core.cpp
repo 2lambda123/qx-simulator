@@ -106,7 +106,7 @@ void StatisticalEnsemble::shrink() {
 
     absl::btree_set<BasisVector> usedKets;
     for (auto const& [key, complexAmplitude]: data) {
-        usedKets.insert(key.basisVector);
+        usedKets.insert(key.basisVector); // FIXME: find a better way?
     }
     auto numberOfUsedKets = usedKets.size();
 

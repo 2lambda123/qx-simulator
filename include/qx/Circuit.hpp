@@ -1,68 +1,33 @@
 #pragma once
 
 #include "qx/Core.hpp"
-#include "qx/ErrorModels.hpp"
 
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace qx {
 class Circuit {
 public:
-    struct Measure {
-        core::QubitIndex qubitIndex{};
-    };
+    explicit Circuit(std::uint64_t n, std::string name = "",
+                     std::uint64_t iterations = 1)
+        : numberOfQubits(n), name(name), iterations(iterations) {}
 
-    struct MeasureAll {};
-
-    struct PrepZ {
-        core::QubitIndex qubitIndex{};
-    };
-
-    struct MeasurementRegisterOperation {
-        std::function<void(BasisVector &)> operation;
-    };
-
-    template <std::size_t NumberOfOperands> struct Unitary {
-        // Matrix is stored inline but could also be a pointer.
-        core::DenseUnitaryMatrix<1 << NumberOfOperands> matrix{};
-        std::array<core::QubitIndex, NumberOfOperands> operands{};
-    };
-
-    using Instruction =
-        std::variant<Measure, MeasureAll, PrepZ, MeasurementRegisterOperation,
-                     Unitary<1>, Unitary<2>, Unitary<3>>;
-
-    struct ControlledInstruction {
-        ControlledInstruction(
-            Instruction const &instr,
-            std::shared_ptr<std::vector<core::QubitIndex>> ctrlB)
-            : instruction(instr), controlBits(ctrlB){};
-
-        Instruction instruction;
-        std::shared_ptr<std::vector<core::QubitIndex>> controlBits;
-    };
-
-    // We could in the future add loops and if/else...
-
-    Circuit(std::string name = "", std::size_t iterations = 1)
-        : name(name), iterations(iterations) {}
-
-    void
-    addInstruction(Instruction const &instruction,
-                   std::shared_ptr<std::vector<core::QubitIndex>> controlBits) {
-        controlledInstructions.emplace_back(instruction, controlBits);
+    void addInstruction(CircuitInstruction const &circuitInstruction) {
+        instructions.push_back(circuitInstruction);
     }
 
-    void execute(core::QuantumState &quantumState,
-                 error_models::ErrorModel const &errorModel) const;
+    void execute(core::MixedStateBase &quantumState) const;
 
     std::string getName() const { return name; }
 
+    std::uint64_t getNumberOfQubits() const { return numberOfQubits; }
+
 private:
-    std::vector<ControlledInstruction> controlledInstructions;
-    std::string const name;
-    std::size_t const iterations = 1;
+    std::vector<CircuitInstruction> instructions;
+    std::uint64_t numberOfQubits = 0;
+    std::string name;
+    std::uint64_t iterations = 1;
 };
 } // namespace qx

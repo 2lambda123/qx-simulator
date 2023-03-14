@@ -29,8 +29,14 @@ endif()
 # sysconfig module.
 if(PYTHON_EXECUTABLE)
     execute_process(
-        COMMAND "${PYTHON_EXECUTABLE}" -c "import sysconfig; print(sysconfig.get_paths()[\"include\"])"
-        OUTPUT_VARIABLE PYTHON_INCLUDE_DIRS
+        COMMAND "${PYTHON_EXECUTABLE}" -c "import site; print(' '.join(site.getsitepackages() + [site.getusersitepackages()]))"
+        OUTPUT_VARIABLE PYTHON_PACKAGE_DIRS
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    execute_process(
+        COMMAND "${PYTHON_EXECUTABLE}" -c "import site, os; print([d + '/numpy/core/include' for d in site.getsitepackages() + [site.getusersitepackages()] if os.path.exists(d + '/numpy/core/include')][0])"
+        OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
 
@@ -46,27 +52,11 @@ if(PYTHON_EXECUTABLE)
     endif()
 endif()
 
-# If we failed to find the headers ourselves, fall back to CMake's internal
-# logic.
-if(NOT PYTHON_INCLUDE_DIRS)
-    message(WARNING "Could NOT find python3 include directory with custom logic, falling back to CMake internal")
-    unset(PYTHON_INCLUDE_DIRS)
-    if("${CMAKE_VERSION}" VERSION_LESS "3.12.0")
-        find_package(PythonInterp 3 REQUIRED)
-        if(${PYTHONINTERP_FOUND})
-            find_package(PythonLibs "${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}" REQUIRED)
-        endif()
-    else()
-        find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-        set(PYTHON_INCLUDE_DIRS "${Python3_INCLUDE_DIRS}")
-        set(PYTHON_EXECUTABLE "${Python3_EXECUTABLE}")
-    endif()
-endif()
+find_package(PythonLibs REQUIRED)
 
 # Print the info we found for reference.
-message(STATUS "Found python3 include directory at ${PYTHON_INCLUDE_DIRS}")
 message(STATUS "Found python3 executable at ${PYTHON_EXECUTABLE}")
-message(STATUS "Found python3 libraries at ${PYTHON_LIBRARIES}")
+message(STATUS "Found Numpy headers at ${NUMPY_INCLUDE_DIR}")
 
 
 # SWIG ------------------------------------------------------------------------
@@ -124,16 +114,29 @@ else()
     )
 endif()
 
+add_library(qxelarator_helpers Helpers.cpp Qxelarator.cpp)
+
+target_include_directories(qxelarator_helpers
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
+    PRIVATE "${PYTHON_INCLUDE_DIRS}" "${NUMPY_INCLUDE_DIR}"
+)
+
+target_link_libraries(qxelarator_helpers PUBLIC qx ${PYTHON_LIBRARIES})
+
 # Compile the C++ source file and link it against the QX library.
 if(WIN32)
-    swig_link_libraries(qxelarator "${PYTHON_LIBRARIES}" qx)
+    swig_link_libraries(qxelarator "${PYTHON_LIBRARIES}" qxelarator_helpers qx)
 else()
-    swig_link_libraries(qxelarator qx)
+    swig_link_libraries(qxelarator qxelarator_helpers qx)
 endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set_target_properties(_qxelarator PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+    set_target_properties(_qxelarator
+        PROPERTIES LINK_FLAGS "-undefined dynamic_lookup"
+    )
 endif()
-target_include_directories(_qxelarator PRIVATE "${PYTHON_INCLUDE_DIRS}")
+target_include_directories(_qxelarator
+    PRIVATE "${PYTHON_INCLUDE_DIRS}" "${NUMPY_INCLUDE_DIR}"
+)
 
 
 #=============================================================================#

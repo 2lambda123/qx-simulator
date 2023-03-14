@@ -1,33 +1,7 @@
 #include "qx/Random.hpp"
 
-#include <random>
-
 namespace qx {
 namespace random {
-
-namespace {
-class RandomNumberGenerator {
-public:
-    using RandomNumberGeneratorType = std::mt19937_64;
-
-    static RandomNumberGeneratorType &getInstance() {
-        static RandomNumberGenerator instance;
-        return instance.randomNumberGenerator;
-    }
-
-    RandomNumberGenerator(RandomNumberGenerator const &) = delete;
-
-    void operator=(RandomNumberGenerator const &) = delete;
-
-private:
-    RandomNumberGenerator() {
-        std::random_device rd;
-        randomNumberGenerator.seed(rd());
-    }
-
-    RandomNumberGeneratorType randomNumberGenerator;
-};
-} // namespace
 
 void seed(std::uint_fast64_t seedValue) {
     RandomNumberGenerator::getInstance().seed(seedValue);
@@ -54,7 +28,6 @@ std::uint_fast64_t randomInteger(std::uint_fast64_t min,
     std::uint_fast64_t bucketSize = UINT_FAST64_MAX / numberOfBuckets;
     std::uint_fast64_t limit = numberOfBuckets * bucketSize;
 
-    assert(limit = numberOfBuckets * bucketSize);
     assert(limit <= UINT_FAST64_MAX);
 
     std::uint_fast64_t r = 0;

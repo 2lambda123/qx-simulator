@@ -113,12 +113,14 @@ add_library(qx
     "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Core.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/SimulationResult.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Circuit.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/ErrorModels.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Qxelarator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/MixedStateSimplifier.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Random.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Simulator.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/LibqasmInterface.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Gates.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Operations.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/DefaultOperations.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/Matrix.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/CircuitInstruction.cpp"
 )
 
 target_include_directories(qx
@@ -150,13 +152,13 @@ endif()
 # Configure, build, and link dependencies                                     #
 #=============================================================================#
 
-option(LIBQASM_COMPAT "" ON)
+option(LIBQASM_COMPAT "" OFF)
 add_subdirectory(deps/libqasm)
 target_link_libraries(qx PUBLIC cqasm)
 
 set(ABSL_PROPAGATE_CXX_STD ON)
 add_subdirectory(deps/abseil-cpp)
-target_link_libraries(qx PUBLIC absl::flat_hash_map)
+target_link_libraries(qx PUBLIC absl::btree absl::flat_hash_map)
 
 #=============================================================================#
 # Executables                                                                 #

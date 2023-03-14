@@ -1,10 +1,10 @@
 #include "qx/Simulator.hpp"
 
 #include "qx/Circuit.hpp"
-#include "qx/ErrorModels.hpp"
 #include "qx/LibqasmInterface.hpp"
 #include "qx/Random.hpp"
 #include "qx/SimulationResult.hpp"
+#include "cqasm.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -12,132 +12,138 @@
 
 namespace qx {
 
-bool Simulator::set(std::string const &filePath) {
-    auto analyzer = cqasm::v1::default_analyzer("1.2");
+namespace {
+using Program = cqasm::v1::ast::One<cqasm::v1::semantic::Program>;
+using AnalysisResult = cqasm::v1::analyzer::AnalysisResult;
 
-    try {
-        program = analyzer.analyze(filePath).unwrap();
-    } catch (const cqasm::v1::analyzer::AnalysisFailed &e) {
-        std::cerr << "Cannot parse and analyze file " << filePath << std::endl;
-        program.reset();
-        return false;
-    }
-
-    if (program.empty()) {
-        std::cerr << "Cannot parse and analyze file " << filePath << std::endl;
-        return false;
-    }
-
-    if (!program->error_model.empty() &&
-        program->error_model->name != "depolarizing_channel") {
-        std::cerr << "Unknown error model: " << program->error_model->name
-                  << std::endl;
-        program.reset();
-        return false;
-    }
-
-    return true;
+auto createAnalyzer() {
+    cqasm::v1::analyzer::Analyzer analyzer{"1.2"};
+    analyzer.register_default_functions_and_mappings();
+    return analyzer;
 }
 
-bool Simulator::setString(std::string const &s) {
-    auto analyzer = cqasm::v1::default_analyzer("1.2");
+std::string getErrors(AnalysisResult const& analysisResult) {
+    assert(!analysisResult.errors.empty());
 
-    try {
-        program = analyzer.analyze_string(s).unwrap();
-    } catch (const cqasm::v1::analyzer::AnalysisFailed &e) {
-        std::cerr << "Cannot parse and analyze string " << s << std::endl;
-        program.reset();
-        return false;
+    std::stringstream errorsString;
+    bool first = true;
+    for (auto const& error: analysisResult.errors) {
+        if (!first) {
+            errorsString << "\n";
+        } else {
+            first = false;
+        }
+        errorsString << error;
     }
 
-    if (program.empty()) {
-        std::cerr << "Cannot parse and analyze string " << s << std::endl;
-        return false;
-    }
-
-    if (!program->error_model.empty() &&
-        program->error_model->name != "depolarizing_channel") {
-        std::cerr << "Unknown error model: " << program->error_model->name
-                  << std::endl;
-        program.reset();
-        return false;
-    }
-
-    return true;
+    return errorsString.str();
 }
 
-std::optional<SimulationResult>
-Simulator::execute(std::size_t iterations,
-                   std::optional<std::uint_fast64_t> seed) const {
-    if (program.empty()) {
-        std::cerr << "No circuit successfully loaded, call set(...) first"
-                  << std::endl;
-        return {};
+Program parseFile(std::string const &filePath) {
+    auto res = createAnalyzer().analyze(filePath);
+
+    if (!res.errors.empty()) {
+        throw std::runtime_error(getErrors(res));
     }
 
-    if (iterations <= 0) {
-        std::cerr << "Number of runs is 0" << std::endl;
-        return {};
+    return res.root;
+}
+
+Program parseString(std::string const &s) {
+    auto res = createAnalyzer().analyze_string(s);
+
+    if (!res.errors.empty()) {
+        throw std::runtime_error(getErrors(res));
+    }
+
+    return res.root;
+}
+
+Program unwrap(auto parseResult, std::stringstream& errors) { // throws when analysis fails
+    return parseResult.unwrap(errors);
+}
+
+std::unique_ptr<qx::core::MixedStateBase>
+execute(Program program, Operations const& operations, std::size_t iterations,
+                   std::optional<std::uint_fast64_t> seed) {
+    if (program.empty()) {
+        throw std::runtime_error("Program is empty");
+    }
+
+    if (!program->error_model.empty()) {
+        throw std::runtime_error("Probabilistic error models are not supported");
     }
 
     if (seed) {
         random::seed(*seed);
     }
 
-    std::size_t qubitCount = program->num_qubits;
-    std::vector<qx::Circuit> perfectCircuits;
-
-    qx::core::QuantumState quantumState(qubitCount);
-
-    auto const &subcircuits = program->subcircuits;
-    for (auto const &subcircuit : subcircuits) {
-        perfectCircuits.push_back(loadCqasmCode(*subcircuit));
+    std::uint64_t qubitCount = program->num_qubits;
+    
+    std::vector<qx::Circuit> circuits;
+    for (auto const &subcircuit : program->subcircuits) {
+        circuits.push_back(loadCqasmCode(*subcircuit, operations, qubitCount));
     }
 
-    auto errorModel = error_models::getErrorModel(program->error_model);
+    std::unique_ptr<qx::core::MixedStateBase> quantumState;
 
-    SimulationResultAccumulator simulationResultAccumulator(quantumState);
-
-    for (std::size_t s = 0; s < iterations; ++s) {
-        quantumState.reset();
-        for (auto &perfectCircuit : perfectCircuits) {
-            perfectCircuit.execute(quantumState, errorModel);
-        }
-        simulationResultAccumulator.append(
-            quantumState.getMeasurementRegister());
+    if (qubitCount <= 64) {
+        quantumState = std::make_unique<qx::core::MixedState<64>>(qubitCount);
+    } else if (qubitCount <= 128) {
+        quantumState = std::make_unique<qx::core::MixedState<128>>(qubitCount);
+    } else if (qubitCount <= 256) {
+        quantumState = std::make_unique<qx::core::MixedState<256>>(qubitCount);
+    } else if (qubitCount <= 512) {
+        quantumState = std::make_unique<qx::core::MixedState<512>>(qubitCount);
+    } else {
+        throw std::runtime_error("Cannot handle that many qubits in this version of QX-simulator");
     }
 
-    auto simulationResult = simulationResultAccumulator.get();
-
-    if (jsonOutputFilePath != "") {
-        auto resultJson = simulationResult.getJsonString();
-        std::ofstream outfile(jsonOutputFilePath);
-        outfile << resultJson;
+    for (auto &circuit : circuits) {
+        circuit.execute(*quantumState);
     }
-
-    return simulationResult;
+    return quantumState;
+}
 }
 
-std::optional<SimulationResult>
-executeString(std::string const &s, std::size_t iterations,
+std::unique_ptr<qx::core::MixedStateBase>
+executeStringImpl(std::string const &s, Operations const& operations, std::size_t iterations,
               std::optional<std::uint_fast64_t> seed) {
-    Simulator simulator;
-    if (!simulator.setString(s)) {
-        return {};
+    auto program = parseString(s);
+    return execute(program, operations, iterations, seed);
+}
+
+std::variant<SimulationResult, SimulationError>
+executeString(std::string const &s, Operations operations, std::size_t iterations,
+              std::optional<std::uint_fast64_t> seed) {
+    std::unique_ptr<qx::core::MixedStateBase> quantumState;
+    try {        
+        quantumState = executeStringImpl(s, operations, iterations, seed);
+    } catch (std::exception const& e) {
+        return SimulationError{e.what()};
     }
 
-    return simulator.execute(iterations, seed);
-};
+    return generateSimulationResult(iterations, std::move(quantumState));
+}
 
-std::optional<SimulationResult>
-executeFile(std::string const &filePath, std::size_t iterations,
+std::unique_ptr<qx::core::MixedStateBase>
+executeFileImpl(std::string const &filePath, Operations operations, std::size_t iterations,
             std::optional<std::uint_fast64_t> seed) {
-    Simulator simulator;
-    if (!simulator.set(filePath)) {
-        return {};
-    }
+    auto program = parseFile(filePath);
+    return execute(program, operations, iterations, seed);
+}
 
-    return simulator.execute(iterations, seed);
-};
+std::variant<SimulationResult, SimulationError>
+executeFile(std::string const &filePath, Operations operations, std::size_t iterations,
+              std::optional<std::uint_fast64_t> seed) {
+    std::unique_ptr<qx::core::MixedStateBase> quantumState;
+    try {
+        quantumState = executeFileImpl(filePath, operations, iterations, seed);
+    } catch (std::exception const& e) {
+        return SimulationError{e.what()};
+    }
+    
+    return generateSimulationResult(iterations, std::move(quantumState));
+}
 
 } // namespace qx

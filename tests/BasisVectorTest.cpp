@@ -1,37 +1,59 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest/doctest.h"
-#include "qx/Utils.hpp"
+#include "qx/utils/BasisVector.hpp"
 // #include "absl/hash/hash_testing.h"
 
 namespace qx {
 namespace utils {
 
-class BitsetTest {
+class BasisVectorTest {
 public:
 };
 
-TEST_CASE_FIXTURE(BitsetTest, "Set/test") {
-    Bitset<15> victim{};
+TEST_CASE_FIXTURE(BasisVectorTest, "Set/test") {
+    BasisVector<15> victim{};
     CHECK(!victim.test(1));
     CHECK(!victim.test(13));
 
-    CHECK_EQ(victim.toSizeT(), 0);
+    CHECK_EQ(victim.toUInt64(), 0);
     victim.set(0);
     CHECK(!victim.test(1));
-    CHECK_EQ(victim.toSizeT(), 1);
+    CHECK_EQ(victim.toUInt64(), 1);
     victim.set(1);
-    CHECK_EQ(victim.toSizeT(), 3);
+    CHECK_EQ(victim.toUInt64(), 3);
     CHECK(victim.test(1));
     CHECK(victim.test(0));
     CHECK(!victim.test(10));
 
     victim.set(3);
     CHECK(victim.test(3));
-    CHECK_EQ(victim.toSizeT(), 11);
+    CHECK_EQ(victim.toUInt64(), 11);
 }
 
-TEST_CASE_FIXTURE(BitsetTest, "Set/test with a lot of bits") {
-    Bitset<150> victim{};
+TEST_CASE_FIXTURE(BasisVectorTest, "Set/test 64 bits") {
+    BasisVector<64> victim{};
+
+    victim.set(31);
+
+    CHECK(victim.test(31));
+    for (auto i = 0; i < 64; ++i) {
+        if (i != 31) {
+            CHECK(!victim.test(i));
+        }
+    }
+}
+
+TEST_CASE_FIXTURE(BasisVectorTest, "operator[]") {
+    BasisVector<15> victim{};
+    utils::BitReference ref = victim[QubitIndex{3}];
+    ref = true;
+    CHECK(victim.test(3));
+    ref = false;
+    CHECK(!victim.test(2));
+}
+
+TEST_CASE_FIXTURE(BasisVectorTest, "Set/test with a lot of bits") {
+    BasisVector<150> victim{};
     CHECK(!victim.test(120));
     CHECK(!victim.test(130));
 
@@ -49,18 +71,18 @@ TEST_CASE_FIXTURE(BitsetTest, "Set/test with a lot of bits") {
              "00000000000000000001");
 }
 
-TEST_CASE_FIXTURE(BitsetTest, "From string") {
-    Bitset<5> victim{"1010"};
+TEST_CASE_FIXTURE(BasisVectorTest, "From string") {
+    BasisVector<5> victim{"1010"};
     CHECK(!victim.test(0));
     CHECK(victim.test(1));
     CHECK(!victim.test(2));
     CHECK(victim.test(3));
     CHECK(!victim.test(4));
-    CHECK_EQ(victim.toSizeT(), 10);
+    CHECK_EQ(victim.toUInt64(), 10);
 }
 
-TEST_CASE_FIXTURE(BitsetTest, "toString") {
-    Bitset<15> victim{};
+TEST_CASE_FIXTURE(BasisVectorTest, "toString") {
+    BasisVector<15> victim{};
     victim.set(0);
     CHECK_EQ(victim.toString(), "000000000000001");
 
@@ -69,30 +91,30 @@ TEST_CASE_FIXTURE(BitsetTest, "toString") {
 }
 
 // Requires GMock
-// TEST_CASE_FIXTURE(BitsetTest, "Hash") {
-//     Bitset<15> victim1{};
+// TEST_CASE_FIXTURE(BasisVectorTest, "Hash") {
+//     BasisVector<15> victim1{};
 //     CHECK(absl::VerifyTypeImplementsAbslHashCorrectly({victim1}));
 
-//     Bitset<15456> victim2{};
+//     BasisVector<15456> victim2{};
 //     victim2.set(4542);
 //     victim2.set(8945);
 //     CHECK(absl::VerifyTypeImplementsAbslHashCorrectly({victim2}));
 // }
 
-TEST_CASE_FIXTURE(BitsetTest, "operator^") {
+TEST_CASE_FIXTURE(BasisVectorTest, "operator^") {
     SUBCASE("Small bitset") {
-        Bitset<15> victim{"000010000010001"};
-        Bitset<15> mask{"000011001000001"};
+        BasisVector<15> victim{"000010000010001"};
+        BasisVector<15> mask{"000011001000001"};
 
         victim ^= mask;
         CHECK_EQ(victim.toString(), "000001001010000");
     }
 
     SUBCASE("Large bitset") {
-        Bitset<123456> victim{};
+        BasisVector<123456> victim{};
         victim.set(457);
 
-        Bitset<123456> mask{};
+        BasisVector<123456> mask{};
 
         mask.set(457);
         mask.set(654);

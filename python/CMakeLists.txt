@@ -69,6 +69,13 @@ message(STATUS "Found python3 executable at ${PYTHON_EXECUTABLE}")
 message(STATUS "Found python3 libraries at ${PYTHON_LIBRARIES}")
 
 
+if(WIN32)
+    get_filename_component(PYTHON_BASEDIR "${PYTHON_INCLUDE_DIRS}" DIRECTORY)
+    set(NUMPY_INCLUDE_DIR "${PYTHON_BASEDIR}/Lib/site-packages/numpy/core/include")
+    message(STATUS "Found numpy headers at ${NUMPY_INCLUDE_DIR}")
+endif()
+
+
 # SWIG ------------------------------------------------------------------------
 
 # Look for SWIG.
@@ -124,16 +131,20 @@ else()
     )
 endif()
 
+add_library(qxelarator_helpers Helpers.cpp Qxelarator.cpp)
+target_include_directories(qxelarator_helpers PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" PRIVATE "${PYTHON_INCLUDE_DIRS}" "${NUMPY_INCLUDE_DIR}")
+target_link_libraries(qxelarator_helpers PUBLIC qx)
+
 # Compile the C++ source file and link it against the QX library.
 if(WIN32)
-    swig_link_libraries(qxelarator "${PYTHON_LIBRARIES}" qx)
+    swig_link_libraries(qxelarator "${PYTHON_LIBRARIES}" qxelarator_helpers qx)
 else()
-    swig_link_libraries(qxelarator qx)
+    swig_link_libraries(qxelarator qxelarator_helpers qx)
 endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set_target_properties(_qxelarator PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 endif()
-target_include_directories(_qxelarator PRIVATE "${PYTHON_INCLUDE_DIRS}")
+target_include_directories(_qxelarator PRIVATE "${PYTHON_INCLUDE_DIRS}" "${NUMPY_INCLUDE_DIR}")
 
 
 #=============================================================================#

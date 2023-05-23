@@ -34,9 +34,9 @@ TEST_CASE_FIXTURE(MatrixTest, "Simple generic product") {
 
 TEST_CASE_FIXTURE(MatrixTest, "Generic product") {
     EditableMatrix a{{1, 1, 1},
-                    {1, 1, 1},
-                    {1, 1, 1},
-                    {1, 1, 1}};
+                     {1, 1, 1},
+                     {1, 1, 1},
+                     {1, 1, 1}};
     
     Matrix b{{1, 1, 1},
              {1, 1, 1},

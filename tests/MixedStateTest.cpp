@@ -15,7 +15,8 @@ protected:
         CHECK_EQ(left.imag(), ::doctest::Approx(right.imag()));
     }
 
-    static void checkMatrix(MixedState<>& victim, std::initializer_list<std::initializer_list<std::complex<double>>> expected) {
+    static void checkMatrix(MixedState<>& victim,
+                            std::initializer_list<std::initializer_list<std::complex<double>>> expected) {
         auto actual = victim.toMatrix();
         auto expectedMatrix = Matrix(expected);
 
@@ -32,7 +33,7 @@ TEST_CASE_FIXTURE(MixedStateTest, "Identity") {
     CHECK_EQ(victim.toDensityMatrix(), expected);
 
     UnitaryMatrix identity{{1, 0},
-                            {0, 1}};
+                           {0, 1}};
 
     victim.applyCircuitInstruction(CircuitInstruction({identity}, {QubitIndex{0}}));
 
@@ -79,7 +80,7 @@ TEST_CASE_FIXTURE(MixedStateTest, "Measure in computational basis") {
     CHECK_EQ(measurementRegisterStatistics["0"], 1.);
 }
 
-TEST_CASE_FIXTURE(MixedStateTest, "Measure in computational basis after hadamard") {
+TEST_CASE_FIXTURE(MixedStateTest, "Measure in computational basis after Hadamard") {
     MixedState victim(1);
 
     victim.applyCircuitInstruction(CircuitInstruction({default_operations::H}, {QubitIndex{0}}));
@@ -137,14 +138,14 @@ TEST_CASE_FIXTURE(MixedStateTest, "|+> state with 2 qubits") {
     victim.applyCircuitInstruction(CircuitInstruction({default_operations::H}, {QubitIndex{1}}));
     
     SquareMatrix expected{{1/2., 0, 1/2., 0},
-                              {0, 0, 0, 0},
-                              {1/2., 0, 1/2., 0},
-                              {0, 0, 0, 0}};
+                          {0, 0, 0, 0},
+                          {1/2., 0, 1/2., 0},
+                          {0, 0, 0, 0}};
 
     CHECK_EQ(victim.toDensityMatrix(), expected);
 }
 
-TEST_CASE_FIXTURE(MixedStateTest, "Measure bell pair separately") {
+TEST_CASE_FIXTURE(MixedStateTest, "Measure Bell pair separately") {
     MixedState victim(3);
 
     victim.applyCircuitInstruction(CircuitInstruction({default_operations::H}, {QubitIndex{1}}));
@@ -204,7 +205,7 @@ TEST_CASE_FIXTURE(MixedStateTest, "Cond gate not applied") {
     victim.applyCircuitInstruction(CircuitInstruction({default_operations::X}, {QubitIndex{0}}, {MeasurementRegisterIndex{0}}));
 
     SquareMatrix expected{{1., 0.},
-                            {0., 0.}};
+                          {0., 0.}};
 
     CHECK_EQ(victim.toDensityMatrix(), expected);
 
@@ -225,7 +226,7 @@ TEST_CASE_FIXTURE(MixedStateTest, "Prep with measure + cond X") {
     victim.applyCircuitInstruction(CircuitInstruction({default_operations::X}, {QubitIndex{0}}, {MeasurementRegisterIndex{0}}));
 
     SquareMatrix expected{{1., 0.},
-                            {0., 0.}};
+                          {0., 0.}};
 
     CHECK_EQ(victim.toDensityMatrix(), expected);
 
@@ -239,11 +240,6 @@ TEST_CASE_FIXTURE(MixedStateTest, "Prep with measure + cond X") {
 
 TEST_CASE_FIXTURE(MixedStateTest, "Conditional X") {
     MixedState victim(2);
-
-    auto effect = [](auto operatorIndex, auto bits) {
-        assert(bits.size() == 1);
-        bits[0] = true;
-    };
 
     victim.applyCircuitInstruction(CircuitInstruction({default_operations::X}, {MeasurementRegisterIndex{0}})); // Bit-flip of classical measurement bit...
 
@@ -286,7 +282,7 @@ TEST_CASE_FIXTURE(MixedStateTest, "Simplify mixed state" * doctest::skip()) {
     victim.applyCircuitInstruction(CircuitInstruction({k0, k1}, {QubitIndex{0}}));
     
     SquareMatrix expectedDensityMatrix{{3/4., 1/4.},
-                                           {1/4., 1/4.}};
+                                       {1/4., 1/4.}};
 
     CHECK_EQ(victim.toDensityMatrix(), expectedDensityMatrix);
 

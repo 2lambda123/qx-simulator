@@ -16,7 +16,8 @@ public:
     using ControlBitsVector = absl::InlinedVector<MeasurementRegisterIndex, config::MAX_INLINED_CONTROL_BITS>;
     using KrausOperators = Operations::KrausOperators;
 
-    CircuitInstruction(KrausOperators ks, DynamicOperandsVector o, ControlBitsVector b = {}) : krausOperators(std::move(ks)), dynamicOperands(std::move(o)), controlBits(std::move(b)) {
+    CircuitInstruction(KrausOperators ks, DynamicOperandsVector o, ControlBitsVector b = {})
+        : krausOperators(std::move(ks)), dynamicOperands(std::move(o)), controlBits(std::move(b)) {
 #ifndef NDEBUG
         Operations::checkValidKrausOperatorSet("unknown", dynamicOperands.size(), krausOperators);
 #endif
@@ -42,7 +43,7 @@ public:
     }
 
 private:
-    absl::InlinedVector<SquareMatrix, config::MAX_INLINED_KRAUS_OPERATORS> const krausOperators;
+    KrausOperators const krausOperators;
     DynamicOperandsVector dynamicOperands;
     ControlBitsVector controlBits;
 };

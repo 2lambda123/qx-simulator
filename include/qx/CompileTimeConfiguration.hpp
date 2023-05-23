@@ -4,6 +4,8 @@ namespace qx {
 namespace config {
 
 // Epsilon for double comparison
+// Maybe clearer? static constexpr double EPS = 1e-12;
+// Or even this: static constexpr double EPS = 0.000'000'000'001;
 static constexpr double EPS = 0.000000000001;
 
 // Number of decimals in output

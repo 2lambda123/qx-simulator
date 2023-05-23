@@ -18,6 +18,19 @@ public:
         ClassicalBit
     };
 
+    // The fmt library is very convenient for these things
+    // It would turn signatureToString implementation into a single liner
+    # include <fmt/format.h>
+    auto format_as(OperandType operandType) {
+        switch (operandType) {
+            case OperandType::Qubit: return "Qubit";
+            case OperandType::ClassicalBit: return "ClassicalBit";
+            case OperandType::Double: return "Double";
+            case OperandType::Int: return "Int";
+        }
+        return "";
+    }
+
     using Signature = absl::InlinedVector<OperandType, config::MAX_INLINED_OPERAND_TYPES>;
     using KrausOperators = absl::InlinedVector<SquareMatrix, config::MAX_INLINED_KRAUS_OPERATORS>;
     using StaticOperand = std::variant<double, std::int64_t>;
@@ -25,14 +38,22 @@ public:
     using KrausOperatorsGenerationFunction = std::function<KrausOperators(StaticOperands const&)>;
 
     static std::string signatureToString(Signature const& signature) {
+        // This is basically saying:
+        // - I want to return a string (fmt::format)
+        // - The format of that string is: open parens, something, close parens
+        // - That something is a vector of OperandType separated by ", "
+        // - You know how to format an OperandType because I'm providing a format_as(OperandType) function above
+        return fmt::format("({})", fmt::join(signature, ", "));
+        /*
         std::stringstream res;
         res << "(";
         bool first = true;
         for (auto t: signature) {
             if (!first) {
                 res << ", ";
+            } else {
+                first = false;
             }
-            first = false;
 
             switch (t) {
                 case OperandType::Qubit:
@@ -52,6 +73,7 @@ public:
 
         res << ")";
         return res.str();
+        */
     }
 
     static void checkValidKrausOperatorSet(std::string const& name, std::int64_t numberOfDynamicOperands, KrausOperators const& krausOperators) {
@@ -76,7 +98,10 @@ public:
         }
 
         if (static_cast<std::int64_t>(std::countr_zero(krausOperators.begin()->getSize())) != numberOfDynamicOperands) {
-            throw std::runtime_error(std::string("Kraus operators for operation ") + name + " have size " + std::to_string(krausOperators.begin()->getSize()) + ", which do not match the number of operands (" + std::to_string(numberOfDynamicOperands) + ")");
+            throw std::runtime_error(
+                std::string("Kraus operators for operation ") + name +
+                " have size " + std::to_string(krausOperators.begin()->getSize()) +
+                ", which do not match the number of operands (" + std::to_string(numberOfDynamicOperands) + ")");
         }
 
         // Kraus operators need to satisfy the completeness relation.
@@ -105,8 +130,11 @@ public:
                 continue;
             }
 
-            assert((operandIt != staticOperands.end()) && ((*signatureIt == OperandType::Double && std::holds_alternative<double>(*operandIt))
-                        || (*signatureIt == OperandType::Int && std::holds_alternative<std::int64_t>(*operandIt))) );
+            assert(
+                (operandIt != staticOperands.end()) &&
+                ((*signatureIt == OperandType::Double && std::holds_alternative<double>(*operandIt)) ||
+                 (*signatureIt == OperandType::Int && std::holds_alternative<std::int64_t>(*operandIt)))
+            );
             
             ++operandIt;
             ++signatureIt;
@@ -120,7 +148,10 @@ public:
         }
 
         if (it->second.first != signature) {
-            throw std::runtime_error("Requested operation " + name + " with signature " + Operations::signatureToString(signature) + ", but the registered operation with that name has signature " + Operations::signatureToString(it->second.first));
+            throw std::runtime_error(
+                "Requested operation " + name +
+                " with signature " + Operations::signatureToString(signature) +
+                ", but the registered operation with that name has signature " + Operations::signatureToString(it->second.first));
         }
         
         auto result = it->second.second(staticOperands);
@@ -170,6 +201,12 @@ public:
         });
     }
 
+    // Possible alternative code
+    //
+    // void add(std::string const& name, Signature signature, KrausOperatorsGenerationFunction&& f) {
+    //     auto blah{ name, std::make_pair(signature, std::forward<KrausOperatorsGenerationFunction>(f)) };
+    //     const auto& inserted = krausOperatorsGeneration.insert(std::move(blah));
+    //     if (!inserted.second)
     void add(std::string const& name, Signature signature, KrausOperatorsGenerationFunction f) {
         auto inserted = krausOperatorsGeneration.insert({name, std::make_pair(signature, std::move(f))}).second;
 
@@ -179,6 +216,9 @@ public:
     }
 
 private:
-    absl::flat_hash_map<std::string, std::pair<Signature, KrausOperatorsGenerationFunction>> krausOperatorsGeneration;
+    // I would define a using alias for this type
+    // E.g.
+    // using KrausOperatorGeneration = absl::flat_hash_map<std::string, std::pair<Signature, KrausOperatorsGenerationFunction>>
+    KrausOperatorsGeneration krausOperatorsGeneration;
 };
 }

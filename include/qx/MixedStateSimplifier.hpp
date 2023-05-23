@@ -30,7 +30,13 @@ class SparseStateAdapter : public EditableAbstractMatrix {
 public:
     using UsedColumn = Column<MaxNumberOfQubits>;
 
-    static std::optional<SparseStateAdapter> makeIfNeeded(absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>& data) {
+    // I would define a using alias for this type
+    // E.g.
+    // using BTreeMapQubitDouble = absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>
+    //
+    // Maybe turning this into a free function? E.g. make_sparse_state
+    // Alike make_unique or make_shared
+    static std::optional<SparseStateAdapter> makeIfNeeded(BTreeMapQubitDouble& data) {
         absl::btree_set<UsedColumn> usedColumns;
         for (auto const& [key, complexAmplitude]: data) {
             usedColumns.insert({key.measurementRegister, key.basisVector});
@@ -64,18 +70,29 @@ public:
         assert(i <= getNumberOfRows() && j <= getNumberOfCols());
         auto correspondingState = std::next(columns.begin(), j);
 
-        data[{ .ensembleIndex = i, .measurementRegister = correspondingState->measurementRegister, .basisVector = correspondingState->basisVector }] = v;
+        // For clarity, I would  write this as a separate variable and a move
+        // E.g.
+        auto blah{
+            .ensembleIndex = i,
+            .measurementRegister = correspondingState->measurementRegister,
+            .basisVector = correspondingState->basisVector
+        };
+        data[std::move(blah)] = v;
     }
 
     void forEach(std::function<void(std::uint64_t, std::uint64_t, AbstractMatrix::Value)> f) const override {
         for (auto const& [k, v]: data) {
-            auto it = columns.find(UsedColumn{ .measurementRegister = k.measurementRegister, .basisVector = k.basisVector });
+            // For clarity, I would  write this as a separate variable and a move
+            // E.g.
+            auto blah = UsedColumn{ .measurementRegister = k.measurementRegister, .basisVector = k.basisVector };
+            auto it = columns.find(std::move(blah));
             f(k.ensembleIndex.value, it - columns.begin(), v);
         }
     }
 
 private:
-    SparseStateAdapter(absl::btree_set<UsedColumn>&& c, absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>& d) : AbstractMatrix(d.rbegin()->first.ensembleIndex.value + 1, c.size()), data(d), columns(c) {}
+    SparseStateAdapter(absl::btree_set<UsedColumn>&& c, BTreeMapQubitDouble& d)
+        : AbstractMatrix(d.rbegin()->first.ensembleIndex.value + 1, c.size()), data(d), columns(c) {}
 
     absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>& data;
     absl::btree_set<UsedColumn> const columns;
@@ -84,7 +101,7 @@ private:
 class MixedStateSimplifier {
 public:
     template <std::uint64_t MaxNumberOfQubits = 64>
-    static void simplify(absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>& data) {
+    static void simplify(BTreeMapQubitDouble& data) {
         auto stateMatrix = SparseStateAdapter<MaxNumberOfQubits>::makeIfNeeded(data);
 
         if (stateMatrix) {
@@ -93,7 +110,7 @@ public:
     }
 
     template <std::uint64_t MaxNumberOfQubits = 64>
-    static void tidy(absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>& data) {
+    static void tidy(BTreeMapQubitDouble& data) {
         auto it = data.begin();
         std::optional<EnsembleIndex> currentEnsembleIndex{};
         EnsembleIndex targetEnsembleIndex{0};
@@ -123,19 +140,20 @@ public:
     }
 
     template <std::uint64_t MaxNumberOfQubits = 64>
-    static void sparsifyGivens(absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>& data) {
+    static void sparsifyGivens(BTreeMapQubitDouble& data) {
         while(sparsifyGivensImpl(data));
     }
 
     template <std::uint64_t MaxNumberOfQubits = 64>
-    static bool sparsifyGivensImpl(absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>& data) {
+    static bool sparsifyGivensImpl(BTreeMapQubitDouble& data) {
         tidy(data);
 
         if (data.rbegin()->first.ensembleIndex == EnsembleIndex{0}) {
             return false;
         }
 
-        using DataIt = absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>::iterator;
+        // I think this block should go into a different function
+        using DataIt = BTreeMapQubitDouble::iterator;
         absl::btree_multimap<std::uint64_t, DataIt> numberOfNonZerosToDataRow;
         auto start = data.begin();
         while(start != data.end()) {
@@ -154,6 +172,8 @@ public:
 
         bool hasProgressed = false;
 
+        // I think block this should go into a different function
+        // And I would also try to split that other function into a few of other functions
         auto mainIt = numberOfNonZerosToDataRow.begin();
         while (mainIt != numberOfNonZerosToDataRow.end()) {
             auto otherCol = std::next(mainIt);
@@ -165,7 +185,8 @@ public:
                     assert(col1 != data.end());
                     assert(col2 != data.end());
                     
-                    if (col1->first.measurementRegister != col2->first.measurementRegister || col1->first.basisVector != col2->first.basisVector) {
+                    if (col1->first.measurementRegister != col2->first.measurementRegister ||
+                        col1->first.basisVector != col2->first.basisVector) {
                         haveSameShape = false;
                         break;
                     }
@@ -215,7 +236,7 @@ public:
 
 
     template <std::uint64_t MaxNumberOfQubits = 64>
-    static void sparsify(absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>& data) {
+    static void sparsify(BTreeMapQubitDouble& data) {
         tidy(data);
 
         if (data.size() <= 2000) {
@@ -232,6 +253,8 @@ public:
         auto minEnsembleIndex = data.begin()->first.ensembleIndex;
         assert(minEnsembleIndex == EnsembleIndex{0});
 
+        // I think block this should go into a different function
+        // And I would also try to split that other function into a few of other functions
         while(!columns.empty()) {
             auto endRow = data.rbegin()->first.ensembleIndex;
 
@@ -245,7 +268,14 @@ public:
 
             auto column = *columns.begin();
 
-            auto lb = data.lower_bound({ .ensembleIndex = minEnsembleIndex, .measurementRegister = column.measurementRegister, .basisVector = column.basisVector });
+            // For clarity, I would  write this as a separate variable and a move
+            // E.g.
+            auto blah{
+                .ensembleIndex = minEnsembleIndex,
+                .measurementRegister = column.measurementRegister,
+                .basisVector = column.basisVector
+            };
+            auto lb = data.lower_bound(std::move(blah));
             assert(data.end() - lb >= 0);
             if (static_cast<std::uint64_t>(std::abs(data.end() - lb)) <= maxSize) {
                 return;
@@ -254,7 +284,14 @@ public:
             columns.erase(columns.begin());
             double xSquaredNormWithoutFirstElement = 0.;
             for (auto row = minEnsembleIndex; row <= endRow; ++row) {
-                auto it = data.find({ .ensembleIndex = row, .measurementRegister = column.measurementRegister, .basisVector = column.basisVector });
+                // For clarity, I would  write this as a separate variable and a move
+                // E.g.
+                auto blah{
+                    .ensembleIndex = row,
+                    .measurementRegister = column.measurementRegister,
+                    .basisVector = column.basisVector
+                };
+                auto it = data.find(std::move(blah));
                 if (it != data.end()) {
                     x[row.value] = it->second;
                     if (row != minEnsembleIndex) {
@@ -271,15 +308,26 @@ public:
                 continue;
             }
 
+            // Would it be useful to have this as a separate function (useful meaning, this code is likely to be used somewhere else)?
+            // Even if not, just for this function simplicity and readability, it would be a good idea, I think
             std::complex<double> alpha = [&]() -> std::complex<double> {
                 if (x[minEnsembleIndex.value] == 0.) {
                     return std::sqrt(xSquaredNormWithoutFirstElement);
                 }
 
-                return x[minEnsembleIndex.value] / std::abs(x[minEnsembleIndex.value]) * std::sqrt(xSquaredNormWithoutFirstElement + std::norm(x[minEnsembleIndex.value]));
+                return x[minEnsembleIndex.value] /
+                       std::abs(x[minEnsembleIndex.value]) *
+                       std::sqrt(xSquaredNormWithoutFirstElement + std::norm(x[minEnsembleIndex.value]));
             }();
 
-            data[{ .ensembleIndex = minEnsembleIndex, .measurementRegister = column.measurementRegister, .basisVector = column.basisVector }] = -alpha;
+            // For clarity, I would  write this as a separate variable and a move
+            // E.g.
+            auto blah{
+                .ensembleIndex = minEnsembleIndex,
+                .measurementRegister = column.measurementRegister,
+                .basisVector = column.basisVector
+            };
+            data[std::move(blah)] = -alpha;
 
             auto u = [&](EnsembleIndex i) {
                 assert(i >= minEnsembleIndex);
@@ -291,23 +339,38 @@ public:
                 return x[i.value];
             };
 
-            auto uSquaredNorm = x[minEnsembleIndex.value] == 0. ? 2 * xSquaredNormWithoutFirstElement : (xSquaredNormWithoutFirstElement + std::norm(x[minEnsembleIndex.value] + alpha));
+            auto uSquaredNorm = x[minEnsembleIndex.value] == 0.
+                ? 2 * xSquaredNormWithoutFirstElement
+                : (xSquaredNormWithoutFirstElement + std::norm(x[minEnsembleIndex.value] + alpha));
 
             assert(utils::isNotNull(uSquaredNorm));
             auto uInvSquaredNormTimesTwo = 2 / uSquaredNorm;
 
+            // Since this is a function, I would rename it as an action, e.g. getHouseHolderMatrix
             auto householderMatrix = [&](EnsembleIndex i, EnsembleIndex j) -> std::complex<double> {
                 assert(i >= minEnsembleIndex);
                 assert(j >= minEnsembleIndex);
                 return (i == j ? 1. : 0.) - uInvSquaredNormTimesTwo * u(i) * std::conj(u(j));                
             };
 
-            absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>> temp;
+            // I would define a using alias for this type
+            // E.g.
+            // using BTreeMap = absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>
+            BTreeMap temp;
             
-            auto multiplyIt = std::next(data.find({ .ensembleIndex = minEnsembleIndex, .measurementRegister = column.measurementRegister, .basisVector = column.basisVector }));
+            // For clarity, I would  write this as a separate variable and a move
+            // E.g.
+            auto blah{
+                .ensembleIndex = minEnsembleIndex,
+                .measurementRegister = column.measurementRegister,
+                .basisVector = column.basisVector
+            };
+            auto multiplyIt = std::next(data.find(std::move(blah)));
 
             while (multiplyIt != data.end()) {
-                if (multiplyIt->first.measurementRegister == column.measurementRegister && multiplyIt->first.basisVector == column.basisVector) {
+                if (multiplyIt->first.measurementRegister == column.measurementRegister &&
+                    multiplyIt->first.basisVector == column.basisVector) {
+
                     ++multiplyIt;
                     continue;
                 }
@@ -315,7 +378,14 @@ public:
                 for (EnsembleIndex row = minEnsembleIndex; row <= endRow; ++row) {
                     auto added = householderMatrix(row, multiplyIt->first.ensembleIndex) * multiplyIt->second;
                     if (utils::isNotNull(added)) {
-                        temp[{ .ensembleIndex = row, .measurementRegister = multiplyIt->first.measurementRegister, .basisVector = multiplyIt->first.basisVector }] += added;
+                        // For clarity, I would write this as a separate variable and a move
+                        // E.g.
+                        auto blah{
+                            .ensembleIndex = row,
+                            .measurementRegister = multiplyIt->first.measurementRegister,
+                            .basisVector = multiplyIt->first.basisVector
+                        };
+                        temp[std::move(blah)] += added;
                     }
                 }
                 multiplyIt = data.erase(multiplyIt);

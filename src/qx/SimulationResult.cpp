@@ -21,12 +21,25 @@ std::ostream &operator<<(std::ostream &os, SimulationResult const &r) {
     for (auto const &kv : r.state) {
         auto const &bitString = kv.first;
         auto const &amplitude = kv.second;
+        // Can you write this as?
+        auto const &[bitString, amplitude] = kv;
+
         os << bitString << "       " << amplitude.real() << " + "
            << amplitude.imag() << "*i   "
            << " (norm = " << std::norm(amplitude) << ")\n";
+        // The fmt library is very convenient for these things
+        // Actually, once you start using it, you don't want to use iostreams any more
+        // It also supports Unicode, date/time formatting...
+        fmt::print(os, "{}       {} + {}*i    (norm = {})\n",
+                   bitString, amplitude.real(), amplitude.imag(), std::norm(amplitude));
+        // Actually, std::print should be available with C++23
+        // https://en.cppreference.com/w/cpp/io/print
+        // So, same code as above, but with std::print
+        // But I'm not sure it is yet as powerful as fmt
+        // E.g. Unicode, date/time formatting...
     }
 
-    os << std::endl << "Measurement register averaging\n";
+    os << "\nMeasurement register averaging\n";
 
     for (const auto &[bitString, probability] : r.measurementRegisterStatistics) {
         os << bitString << "       " << probability << ")\n";

@@ -50,6 +50,14 @@ Program parseFile(std::string const &filePath) {
 }
 
 Program parseString(std::string const &s) {
+    // Possible alternative code
+    /*
+    if (auto res = createAnalyzer().analyze_string(s); res.errors.empty()) {
+        return res.root;
+    } else {
+        throw std::runtime_error(getErrors(res));
+    }
+    */
     auto res = createAnalyzer().analyze_string(s);
 
     if (!res.errors.empty()) {
@@ -69,24 +77,20 @@ execute(Program program, Operations const& operations, std::size_t iterations,
     if (program.empty()) {
         throw std::runtime_error("Program is empty");
     }
-
     if (!program->error_model.empty()) {
         throw std::runtime_error("Probabilistic error models are not supported");
     }
-
     if (seed) {
         random::seed(*seed);
     }
 
-    std::uint64_t qubitCount = program->num_qubits;
-    
     std::vector<qx::Circuit> circuits;
+    std::uint64_t qubitCount = program->num_qubits;
     for (auto const &subcircuit : program->subcircuits) {
         circuits.push_back(loadCqasmCode(*subcircuit, operations, qubitCount));
     }
 
     std::unique_ptr<qx::core::MixedStateBase> quantumState;
-
     if (qubitCount <= 64) {
         quantumState = std::make_unique<qx::core::MixedState<64>>(qubitCount);
     } else if (qubitCount <= 128) {
@@ -108,7 +112,7 @@ execute(Program program, Operations const& operations, std::size_t iterations,
 
 std::unique_ptr<qx::core::MixedStateBase>
 executeStringImpl(std::string const &s, Operations const& operations, std::size_t iterations,
-              std::optional<std::uint_fast64_t> seed) {
+                  std::optional<std::uint_fast64_t> seed) {
     auto program = parseString(s);
     return execute(program, operations, iterations, seed);
 }
@@ -116,34 +120,31 @@ executeStringImpl(std::string const &s, Operations const& operations, std::size_
 std::variant<SimulationResult, SimulationError>
 executeString(std::string const &s, Operations operations, std::size_t iterations,
               std::optional<std::uint_fast64_t> seed) {
-    std::unique_ptr<qx::core::MixedStateBase> quantumState;
-    try {        
-        quantumState = executeStringImpl(s, operations, iterations, seed);
+    try {
+        auto quantumState = executeStringImpl(s, operations, iterations, seed);
+        return generateSimulationResult( iterations, std::move(quantumState));
     } catch (std::exception const& e) {
         return SimulationError{e.what()};
     }
 
-    return generateSimulationResult(iterations, std::move(quantumState));
 }
 
 std::unique_ptr<qx::core::MixedStateBase>
 executeFileImpl(std::string const &filePath, Operations operations, std::size_t iterations,
-            std::optional<std::uint_fast64_t> seed) {
+                std::optional<std::uint_fast64_t> seed) {
     auto program = parseFile(filePath);
-    return execute(program, operations, iterations, seed);
+    return execute(std::move(program), operations, iterations, seed);
 }
 
 std::variant<SimulationResult, SimulationError>
 executeFile(std::string const &filePath, Operations operations, std::size_t iterations,
-              std::optional<std::uint_fast64_t> seed) {
-    std::unique_ptr<qx::core::MixedStateBase> quantumState;
+            std::optional<std::uint_fast64_t> seed) {
     try {
-        quantumState = executeFileImpl(filePath, operations, iterations, seed);
+        auto quantumState = executeFileImpl(filePath, operations, iterations, seed);
+        return generateSimulationResult(iterations, std::move(quantumState));
     } catch (std::exception const& e) {
         return SimulationError{e.what()};
     }
-    
-    return generateSimulationResult(iterations, std::move(quantumState));
 }
 
 } // namespace qx

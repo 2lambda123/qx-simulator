@@ -132,7 +132,10 @@ else()
 endif()
 
 add_library(qxelarator_helpers Helpers.cpp Qxelarator.cpp)
-target_include_directories(qxelarator_helpers PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" PRIVATE "${PYTHON_INCLUDE_DIRS}" "${NUMPY_INCLUDE_DIR}")
+target_include_directories(qxelarator_helpers
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
+    PRIVATE "${PYTHON_INCLUDE_DIRS}" "${NUMPY_INCLUDE_DIR}"
+)
 target_link_libraries(qxelarator_helpers PUBLIC qx)
 
 # Compile the C++ source file and link it against the QX library.
@@ -142,9 +145,13 @@ else()
     swig_link_libraries(qxelarator qxelarator_helpers qx)
 endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set_target_properties(_qxelarator PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+    set_target_properties(_qxelarator
+        PROPERTIES LINK_FLAGS "-undefined dynamic_lookup"
+    )
 endif()
-target_include_directories(_qxelarator PRIVATE "${PYTHON_INCLUDE_DIRS}" "${NUMPY_INCLUDE_DIR}")
+target_include_directories(_qxelarator
+    PRIVATE "${PYTHON_INCLUDE_DIRS}" "${NUMPY_INCLUDE_DIR}"
+)
 
 
 #=============================================================================#

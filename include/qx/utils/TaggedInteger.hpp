@@ -20,34 +20,11 @@ struct TaggedInteger {
     template <typename H> friend H AbslHashValue(H h, TaggedInteger const &taggedInteger) {
         return H::combine(std::move(h), taggedInteger.value);
     }
-    
-    inline constexpr bool operator==(TaggedInteger const &other) const {
-        return value == other.value;
-    }
 
-    inline constexpr bool operator<(TaggedInteger const &other) const {
-        return value < other.value;
-    }
-
-    inline constexpr bool operator>(TaggedInteger const &other) const {
-        return value > other.value;
-    }
-
-    inline constexpr bool operator<(std::uint64_t integer) const {
-        return value < integer;
-    }
-
-    inline constexpr bool operator>=(TaggedInteger const &other) const {
-        return value >= other.value;
-    }
-
-    inline constexpr bool operator<=(TaggedInteger const &other) const {
-        return value <= other.value;
-    }
-
-    inline constexpr bool operator>=(std::uint64_t integer) const {
-        return value >= integer;
-    }
+    // I think you could just use the spaceship operator (three-way comparison operator) here
+    // Maybe better to forbid comparisions to std::uint64_t?
+    // I.e. avoid implicit conversions, and force to compare to a TaggedInteger?
+    inline constexpr auto operator<=>(TaggedInteger const &other) const = default;
 
     inline constexpr void operator++() {
         ++value;

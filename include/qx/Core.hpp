@@ -19,8 +19,7 @@ namespace qx {
 namespace core {
 
 template <typename V>
-class StringMap {
-public:
+struct StringMap {
     virtual void add(std::string const& key, V value) = 0;
 };
 
@@ -29,13 +28,13 @@ class AssociationVectorStringMap : public StringMap<V> {
 public:
     using T = std::vector<std::pair<std::string, V>>;
 
-    AssociationVectorStringMap(T& v) : data(v) {
+    explicit AssociationVectorStringMap(T& v) : data(v) {
         assert(data.empty());
     }
 
     void add(std::string const& key, V value) override {
         // Could be sorted.
-        auto it = std::find_if(data.rbegin(), data.rend(), [&key](auto const& kv) {
+        auto it = std::ranges::find_last_if(data, [&key](auto const& kv) {
             return kv.first == key;
         });
 
@@ -66,8 +65,10 @@ public:
     using BasisVector = utils::BasisVector<MaxNumberOfQubits>;
     using OperandsVector = absl::InlinedVector<QubitIndex, config::MAX_INLINED_OPERANDS>;
     using ClassicalBitReferenceVector = absl::InlinedVector<utils::BitReference, config::MAX_INLINED_OPERANDS>;
+    //
+    using BTreeMapKeyDouble = absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>;
 
-    MixedState(std::size_t n) : numberOfQubits(n) {
+    explicit MixedState(std::size_t n) : numberOfQubits(n) {
         data.insert({Key<MaxNumberOfQubits>{.ensembleIndex = {}, .measurementRegister = {}, .basisVector = {}}, 1.});
     }
 
@@ -75,7 +76,7 @@ public:
         return numberOfQubits;
     }
 
-    absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>> const& getData() const {
+    BTreeMapKeyDouble const& getData() const {
         return data;
     }
 
@@ -139,7 +140,9 @@ public:
         BasisVector currentMeasurementRegister = data.begin()->first.measurementRegister;
 
         for (auto it = data.begin(); it != data.end(); ++it) {
-            if (it->first.measurementRegister != currentMeasurementRegister || it->first.ensembleIndex != currentEnsembleIndex) {
+            if (it->first.measurementRegister != currentMeasurementRegister ||
+                it->first.ensembleIndex != currentEnsembleIndex) {
+
                 currentEnsembleIndex = it->first.ensembleIndex;
                 currentMeasurementRegister = it->first.measurementRegister;
             }
@@ -147,7 +150,9 @@ public:
             result.add(it->first.basisVector.toUInt64(), it->first.basisVector.toUInt64(), std::norm(it->second));
 
             auto it2 = std::next(it);
-            while (it2 != data.end() && it2->first.ensembleIndex == currentEnsembleIndex && it2->first.measurementRegister == currentMeasurementRegister) {
+            while (it2 != data.end() && it2->first.ensembleIndex == currentEnsembleIndex &&
+                   it2->first.measurementRegister == currentMeasurementRegister) {
+
                 result.add(it2->first.basisVector.toUInt64(), it->first.basisVector.toUInt64(), it2->second * std::conj(it->second));
                 result.add(it->first.basisVector.toUInt64(), it2->first.basisVector.toUInt64(), it->second * std::conj(it2->second));
                 ++it2;
@@ -162,10 +167,13 @@ public:
 
         assert(getNumberOfQubits() <= 32);
 
-        EditableMatrix result(data.rbegin()->first.ensembleIndex.value + 1, 1 << (2 * getNumberOfQubits()));
+        Matrix result(data.rbegin()->first.ensembleIndex.value + 1, 1 << (2 * getNumberOfQubits()));
         
         for (auto const& [key, factor]: data) {
-            result.set(key.ensembleIndex.value, (key.measurementRegister.toUInt64() << getNumberOfQubits()) + key.basisVector.toUInt64(), factor);
+            result.set(
+                key.ensembleIndex.value,
+                (key.measurementRegister.toUInt64() << getNumberOfQubits()) + key.basisVector.toUInt64(),
+                factor);
         }
 
         return result; // slicing
@@ -196,21 +204,31 @@ public:
         assert(isConsistent());
 
         auto const operands = circuitInstruction.getOperands();
+        auto firstKey = data.begin()->first;
+        auto lastKey = data.rbegin()->first;
+        auto const maxEnsembleIndex = lastKey.ensembleIndex;
+        auto insertionEnsembleIndex = lastKey.ensembleIndex + 1;
+        auto currentEnsembleIndex = firstKey.ensembleIndex;
+        auto currentMeasurementRegister = firstKey.measurementRegister;
 
-        auto const maxEnsembleIndex = data.rbegin()->first.ensembleIndex;
-        auto insertionEnsembleIndex = data.rbegin()->first.ensembleIndex + 1;
-
-        EnsembleIndex currentEnsembleIndex = data.begin()->first.ensembleIndex;
-        auto currentMeasurementRegister = data.begin()->first.measurementRegister;
-        while (data.begin()->first.ensembleIndex <= maxEnsembleIndex) {
-            bool applyKrausOperators = data.begin()->first.measurementRegister.test(circuitInstruction.getControlBits());
-
-            if (data.begin()->first.ensembleIndex != currentEnsembleIndex || data.begin()->first.measurementRegister != currentMeasurementRegister) {
-                currentMeasurementRegister = data.begin()->first.measurementRegister;
-                currentEnsembleIndex = data.begin()->first.ensembleIndex;
-                insertionEnsembleIndex.value += applyKrausOperators ? circuitInstruction.getNumberOfKrausOperators() : 1;
+        for (;;) {
+            if (firstKey = data.begin()->first; firstKey.ensembleIndex <= maxEnsembleIndex) {
+                break;
             }
 
+            // Turn this block into a function?
+            if (firstKey.ensembleIndex != currentEnsembleIndex ||
+                firstKey.measurementRegister != currentMeasurementRegister) {
+
+                currentMeasurementRegister = firstKey.measurementRegister;
+                currentEnsembleIndex = firstKey.ensembleIndex;
+                insertionEnsembleIndex.value += applyKrausOperators
+                    ? circuitInstruction.getNumberOfKrausOperators()
+                    : 1;
+            }
+
+            // Turn this block into a function?
+            bool applyKrausOperators = firstKey.measurementRegister.test(circuitInstruction.getControlBits());
             if (!applyKrausOperators) {
                 auto extracted = data.extract(data.begin());
                 extracted.key().ensembleIndex = insertionEnsembleIndex;
@@ -218,44 +236,52 @@ public:
                 continue;
             }
 
+            // Turn this block into a function?
             BasisVector reduced;
             for (std::uint64_t i = 0; i < operands.size(); ++i) {
                 auto const& operand = operands[operands.size() - i - 1];
                 if (std::holds_alternative<QubitIndex>(operand)) {
-                    reduced.set(i, data.begin()->first.basisVector.test(std::get<QubitIndex>(operand).value));
+                    reduced.set(i, firstKey.basisVector.test(std::get<QubitIndex>(operand).value));
                 } else {
                     assert(std::holds_alternative<MeasurementRegisterIndex>(operand));
-                    reduced.set(i, data.begin()->first.measurementRegister.test(std::get<MeasurementRegisterIndex>(operand).value));
+                    reduced.set(i, firstKey.measurementRegister.test(std::get<MeasurementRegisterIndex>(operand).value));
                 }
             }
 
             for (KrausOperatorIndex operatorIndex; operatorIndex < circuitInstruction.getNumberOfKrausOperators(); ++operatorIndex) {
                 for (BasisVector ket = {}; !ket.test(operands.size()); ++ket) {
                     auto const& krausValue = circuitInstruction.getKrausValue(operatorIndex, ket.toUInt64(), reduced.toUInt64());
-
                     if (krausValue == 0.) { // No epsilon double comparison here, since Kraus matrices are constants.
                         continue;
                     }
-                    
-                    std::complex<double> addedValue = data.begin()->second * krausValue;
 
-                    auto modifiedBasisVector = data.begin()->first.basisVector;
-                    auto modifiedMeasurementRegister = data.begin()->first.measurementRegister;
-
+                    // At this point we are in a level 4 of nesting (for-for-for-for)
+                    // I would try to reduce the complexity of this function,
+                    // maybe turning each of this loops into a function itself
+                    // That should help also to understand what each loop is doing
                     for (std::size_t operandIndex = 0; operandIndex < operands.size(); ++operandIndex) {
                         auto const& operand = operands[operands.size() - operandIndex - 1];
                         
                         if (std::holds_alternative<QubitIndex>(operand)) {
                             assert(std::get<QubitIndex>(operand).value < getNumberOfQubits());
-                            modifiedBasisVector.set(std::get<QubitIndex>(operand).value,
-                                        utils::getBit(ket.toUInt64(), operandIndex));
+                            auto modifiedBasisVector = firstKey.basisVector;
+                            modifiedBasisVector.set(std::get<QubitIndex>(operand).value, utils::getBit(ket.toUInt64(), operandIndex));
                         } else {
                             assert(std::holds_alternative<MeasurementRegisterIndex>(operand));
+                            auto modifiedMeasurementRegister = data.begin()->first.measurementRegister;
                             modifiedMeasurementRegister.set(std::get<MeasurementRegisterIndex>(operand).value, utils::getBit(ket.toUInt64(), operandIndex));
                         }
                     }
 
-                    auto insertionIt = data.try_emplace(data.end(), { .ensembleIndex = insertionEnsembleIndex + operatorIndex.value, .measurementRegister = modifiedMeasurementRegister, .basisVector = modifiedBasisVector }, 0.);
+                    auto insertionIt = data.try_emplace(data.end(),
+                        {
+                            .ensembleIndex = insertionEnsembleIndex + operatorIndex.value,
+                            .measurementRegister = modifiedMeasurementRegister,
+                            .basisVector = modifiedBasisVector
+                        },
+                        0.
+                    );
+                    std::complex<double> addedValue = data.begin()->second * krausValue;
                     insertionIt->second += addedValue;
                 }
             }
@@ -267,27 +293,30 @@ public:
     }
 
 private:
-    static bool areMeasurementRegisterStatisticsEqual(absl::btree_map<std::string, double> left, absl::btree_map<std::string, double> right) {
+    static bool areMeasurementRegisterStatisticsEqual(
+        absl::btree_map<std::string, double> left, absl::btree_map<std::string, double> right) {
+
+        // Possible alternative code
+        /*
+        return (left.size() == right.size()) &&
+            std::ranges::all_of(left, [rightIt = right.begin()](auto const &[leftKey, leftValue]) {
+                return (leftKey == rightIt->first) &&
+                    utils::isNull(leftValue - rightIt++->second);
+            });
+        */
+        //
         if (left.size() != right.size()) {
             return false;
         }
 
-        auto leftIt = left.begin();
-        auto rightIt = right.begin();
-        while (leftIt != left.end() && rightIt != right.end()) {
-            if (leftIt->first != rightIt->first) {
+        for (auto leftIt = left.begin(), rightIt = right.begin(); leftIt != left.end(); ++leftit, ++rightIt) {
+            if (leftIt->first != rightIt->first ||
+                utils::isNotNull(leftIt->second - rightIt->second)) {
                 return false;
             }
-
-            if (utils::isNotNull(leftIt->second - rightIt->second)) {
-                return false;
-            }
-
-            ++leftIt;
-            ++rightIt;
         }
-
         return true;
+        //
     }
 
     std::string getStateString(BasisVector s) const {
@@ -298,6 +327,9 @@ private:
 
     bool isConsistent() const;
 
+    // I would define a using alias for this type
+    // E.g.
+    // using BTreeMapQubitDouble = absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>>
     absl::btree_map<Key<MaxNumberOfQubits>, std::complex<double>> data;
     std::size_t const numberOfQubits = 1;
 };

@@ -31,18 +31,33 @@ Operations::Signature getSignature(cq::Instruction const& instruction) {
 
 }
 
-absl::InlinedVector<CircuitInstruction::DynamicOperandsVector, config::MAX_INLINED_OPERANDS> getDynamicOperands(cq::Instruction const& instruction) {
-    absl::InlinedVector<CircuitInstruction::DynamicOperandsVector, config::MAX_INLINED_OPERANDS> res;
+// I would define a using alias for this type
+// E.g.
+// using DynamicOperandsVector = absl::InlinedVector<CircuitInstruction::DynamicOperandsVector, config::MAX_INLINED_OPERANDS>
+DynamicOperandsVector getDynamicOperands(cq::Instruction const& instruction) {
+    DynamicOperandsVector res;
     for (auto const& op: instruction.operands) {
         if (auto qubitRefs = op->as_qubit_refs()) {
             assert(res.size() == 0 || res.size() == qubitRefs->index.size());
             res.resize(std::max(res.size(), qubitRefs->index.size()));
+            // Possible alternative code
+            /*
+            std::ranges::transform(qubitRefs->index, res, []() {
+                return QubitIndex{ static_cast<std::uint64_t>(qubitRefs->index[i]->value) };
+            });
+            */
             for (std::uint64_t i = 0; i < qubitRefs->index.size(); ++i) {
                 res[i].push_back(QubitIndex{ static_cast<std::uint64_t>(qubitRefs->index[i]->value) });
             }
         } else if (auto bitRefs = op->as_bit_refs()) {
             assert(res.size() == 0 || res.size() == bitRefs->index.size());
             res.resize(std::max(res.size(), bitRefs->index.size()));
+            // Possible alternative code
+            /*
+            std::ranges::transform(bitRefs->index, res, []() {
+                return bitIndex{ static_cast<std::uint64_t>(bitRefs->index[i]->value) };
+            });
+            */
             for (std::uint64_t i = 0; i < bitRefs->index.size(); ++i) {
                 res[i].push_back(MeasurementRegisterIndex{ static_cast<std::uint64_t>(bitRefs->index[i]->value) });
             }
@@ -69,53 +84,35 @@ Operations::StaticOperands getStaticOperands(cq::Instruction const& instruction)
     return res;
 }
 
-std::string to_string(cq::NodeType nodeType) {
+auto format(cq::NodeType nodeType) {
     switch (nodeType) {
-    case cq::NodeType::AnnotationData:
-        return "AnnotationData";
-    case cq::NodeType::Block:
-        return "Block";
-    case cq::NodeType::BreakStatement:
-        return "BreakStatement";
-    case cq::NodeType::Bundle:
-        return "Bundle";
-    case cq::NodeType::BundleExt:
-        return "BundleExt";
-    case cq::NodeType::ContinueStatement:
-        return "ContinueStatement";
-    case cq::NodeType::ErrorModel:
-        return "ErrorModel";
-    case cq::NodeType::ForLoop:
-        return "ForLoop";
-    case cq::NodeType::ForeachLoop:
-        return "ForeachLoop";
-    case cq::NodeType::GotoInstruction:
-        return "GotoInstruction";
-    case cq::NodeType::IfElse:
-        return "IfElse";
-    case cq::NodeType::IfElseBranch:
-        return "IfElseBranch";
-    case cq::NodeType::Instruction:
-        return "Instruction";
-    case cq::NodeType::Mapping:
-        return "Mapping";
-    case cq::NodeType::Program:
-        return "Program";
-    case cq::NodeType::RepeatUntilLoop:
-        return "RepeatUntilLoop";
-    case cq::NodeType::SetInstruction:
-        return "SetInstruction";
-    case cq::NodeType::Subcircuit:
-        return "Subcircuit";
-    case cq::NodeType::Variable:
-        return "Variable";
-    case cq::NodeType::Version:
-        return "Version";
-    case cq::NodeType::WhileLoop:
-        return "WhileLoop";
+        case cq::NodeType::AnnotationData: return "AnnotationData";
+        case cq::NodeType::Block: return "Block";
+        case cq::NodeType::BreakStatement: return "BreakStatement";
+        case cq::NodeType::Bundle: return "Bundle";
+        case cq::NodeType::BundleExt: return "BundleExt";
+        case cq::NodeType::ContinueStatement: return "ContinueStatement";
+        case cq::NodeType::ErrorModel: return "ErrorModel";
+        case cq::NodeType::ForLoop: return "ForLoop";
+        case cq::NodeType::ForeachLoop: return "ForeachLoop";
+        case cq::NodeType::GotoInstruction: return "GotoInstruction";
+        case cq::NodeType::IfElse: return "IfElse";
+        case cq::NodeType::IfElseBranch: return "IfElseBranch";
+        case cq::NodeType::Instruction: return "Instruction";
+        case cq::NodeType::Mapping: return "Mapping";
+        case cq::NodeType::Program: return "Program";
+        case cq::NodeType::RepeatUntilLoop: return "RepeatUntilLoop";
+        case cq::NodeType::SetInstruction: return "SetInstruction";
+        case cq::NodeType::Subcircuit: return "Subcircuit";
+        case cq::NodeType::Variable: return "Variable";
+        case cq::NodeType::Version: return "Version";
+        case cq::NodeType::WhileLoop: return "WhileLoop";
     }
-
     return "Unknown";
+}
+
+std::string to_string(cq::NodeType nodeType) {
+    return fmt::format("{}", nodeType);
 }
 
 class GateConvertor : public cq::RecursiveVisitor {
@@ -142,29 +139,30 @@ private:
         }
 
         auto name = instruction.name;
-        std::transform(name.begin(), name.end(), name.begin(), [](auto c){ return std::tolower(c); });
-
+        std::ranges::transform(name, name.begin(), [](auto c){ return std::tolower(c); });
         auto signature = getSignature(instruction);
-
         Operations::StaticOperands nonQubitOperands = getStaticOperands(instruction);
-
         auto krausOperators = operations.get(name, signature, nonQubitOperands);
-
         Operations::checkValidKrausOperatorSet(instruction.name, signature.size() - nonQubitOperands.size(), krausOperators);
 
-        absl::InlinedVector<MeasurementRegisterIndex, config::MAX_INLINED_CONTROL_BITS> controlBits;
-
+        ControlBitsVector controlBits;
         if (auto bitref = instruction.condition->as_bit_refs()) {
+            // Possible alternative code
+            /*
+            controlBits.resize(bitref->size());
+            std::ranges::transform(bitref->index, controlBits.begin(),
+                [](auto const &b) {
+                    return MeasurementRegisterIndex{static_cast<std::size_t>(b->value);
+            });
+            */
             for (auto const &b : bitref->index) {
                 controlBits.push_back(
                     MeasurementRegisterIndex{static_cast<std::size_t>(b->value)});
             }
         }
 
-        auto dynamicOperands = getDynamicOperands(instruction);
-
-        for (auto ops: dynamicOperands) {
-            circuit.addInstruction(CircuitInstruction(krausOperators, ops, controlBits));
+        for (auto&& dynamicOperand: getDynamicOperands(instruction)) {
+            circuit.addInstruction(CircuitInstruction(krausOperators, dynamicOperand, controlBits));
         }
     }
 

@@ -13,24 +13,28 @@ inline double SQRT_2 = 1.414213562373095048801688724209698078L;
 
 inline UnitaryMatrix IDENTITY = UnitaryMatrix::identity(2);
 
-inline UnitaryMatrix X{{0, 1}, {1, 0}};
+inline UnitaryMatrix X{{0, 1},
+                       {1, 0}};
 
-inline UnitaryMatrix Y{{0, -1i}, {1i, 0}};
+inline UnitaryMatrix Y{{0, -1i},
+                       {1i, 0}};
 
-inline UnitaryMatrix Z{{1, 0}, {0, -1}};
+inline UnitaryMatrix Z{{1, 0},
+                       {0, -1}};
 
-inline UnitaryMatrix S{{1, 0}, {0, 1i}};
+inline UnitaryMatrix S{{1, 0},
+                       {0, 1i}};
 
 inline UnitaryMatrix SDAG = S.dagger();
 
-inline UnitaryMatrix
-    T{{1, 0}, {0, 1 / SQRT_2 + 1i / SQRT_2}};
+inline UnitaryMatrix T{{1, 0},
+                       {0, 1 / SQRT_2 + 1i / SQRT_2}};
 
 inline UnitaryMatrix TDAG = T.dagger();
 
 inline Operations::KrausOperators RX(double theta) {
     return {UnitaryMatrix{{std::cos(theta / 2), -1i * std::sin(theta / 2)},
-          {-1i * std::sin(theta / 2), std::cos(theta / 2)}}};
+                          {-1i * std::sin(theta / 2), std::cos(theta / 2)}}};
 }
 
 inline auto X90 = RX(PI / 2);
@@ -38,7 +42,7 @@ inline auto MX90 = RX(-PI / 2);
 
 inline Operations::KrausOperators RY(double theta) {
     return {UnitaryMatrix{{std::cos(theta / 2), -std::sin(theta / 2)},
-            {std::sin(theta / 2), std::cos(theta / 2)}}};
+                          {std::sin(theta / 2), std::cos(theta / 2)}}};
 }
 
 inline auto Y90 = RY(PI / 2);
@@ -46,7 +50,7 @@ inline auto MY90 = RY(-PI / 2);
 
 inline Operations::KrausOperators RZ(double theta) {
     return {UnitaryMatrix{{std::cos(theta / 2) - 1i * std::sin(theta / 2), 0},
-            {0, std::cos(theta / 2) + 1i * std::sin(theta / 2)}}};
+                          {0, std::cos(theta / 2) + 1i * std::sin(theta / 2)}}};
 }
 
 inline auto Z90 = RZ(PI / 2);
@@ -66,9 +70,9 @@ inline UnitaryMatrix
 
 inline Operations::KrausOperators CR(double theta) {
     return {UnitaryMatrix{{1, 0, 0, 0},
-          {0, 1, 0, 0},
-          {0, 0, 1, 0},
-          {0, 0, 0, std::cos(theta) + 1i * std::sin(theta)}}};
+                          {0, 1, 0, 0},
+                          {0, 0, 1, 0},
+                          {0, 0, 0, std::cos(theta) + 1i * std::sin(theta)}}};
 }
 
 inline UnitaryMatrix TOFFOLI{{1, 0, 0, 0, 0, 0, 0, 0},
@@ -105,11 +109,29 @@ inline std::initializer_list<SquareMatrix> MEAS_Z{
 };
 
 // FIXME
-inline std::initializer_list<SquareMatrix> MEAS_X{SquareMatrix{{1/2., 1/2.}, {1/2., 1/2.}}, SquareMatrix{{1/2., -1/2.}, {-1/2., 1/2.}}};
-inline std::initializer_list<SquareMatrix> MEAS_Y{SquareMatrix{{1/2., 1i/2.}, {1i/2., -1/2.}}, SquareMatrix{{1/2., -1i/2.}, {-1i/2., 1/2.}}};
-inline std::initializer_list<SquareMatrix> PREP_Z{SquareMatrix{{1, 0}, {0, 0}}, SquareMatrix{{0, 1}, {0, 0}}};
-inline std::initializer_list<SquareMatrix> PREP_Z_SWAP{SquareMatrix{{1, 1}, {0, 0}}};
-inline std::initializer_list<SquareMatrix> PREP_Y{SquareMatrix{{1/2., 1i/2.}, {1i/2., -1/2.}}, SquareMatrix{{1/2., -1i/2.}, {1i/2., -1/2.}}};
+inline std::initializer_list<SquareMatrix> MEAS_X{
+    SquareMatrix{{1/2., 1/2.},
+                 {1/2., 1/2.}},
+    SquareMatrix{{1/2., -1/2.},
+                 {-1/2., 1/2.}}};
+inline std::initializer_list<SquareMatrix> MEAS_Y{
+    SquareMatrix{{1/2., 1i/2.},
+                 {1i/2., -1/2.}},
+    SquareMatrix{{1/2., -1i/2.},
+                 {-1i/2., 1/2.}}};
+inline std::initializer_list<SquareMatrix> PREP_Z{
+    SquareMatrix{{1, 0},
+                 {0, 0}},
+    SquareMatrix{{0, 1},
+                 {0, 0}}};
+inline std::initializer_list<SquareMatrix> PREP_Z_SWAP{
+    SquareMatrix{{1, 1},
+                 {0, 0}}};
+inline std::initializer_list<SquareMatrix> PREP_Y{
+    SquareMatrix{{1/2., 1i/2.},
+                 {1i/2., -1/2.}},
+    SquareMatrix{{1/2., -1i/2.},
+                 {1i/2., -1/2.}}};
 
 inline Operations::KrausOperators DEPOLARIZING_CHANNEL(double lambda) {
     auto k0 = std::sqrt(1. - 3 * lambda / 4) * SquareMatrix::identity(2);

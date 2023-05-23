@@ -19,8 +19,12 @@ double randomZeroOneDouble() {
 
 std::uint_fast64_t randomInteger(std::uint_fast64_t min,
                                  std::uint_fast64_t max) {
-    // std::uniform_int_distribution<std::uint_fast64_t> is not consistent
-    // across platforms.
+    // std::uniform_int_distribution<std::uint_fast64_t> is not consistent across platforms.
+    // F* hell! I didn't know
+    // https://stackoverflow.com/questions/42475773/why-does-stduniform-int-distribution-not-give-the-same-answer-across-different
+    // https://www.reddit.com/r/cpp/comments/7i21sn/til_uniform_int_distribution_is_not_portable/
+    // In that last link they say Boost.Random is portable
+    // Anyway, your solution is to rely just on random_device, which is portable, isn't it?
     assert(min <= max);
     assert(max - min < UINT_FAST64_MAX);
 
@@ -46,30 +50,19 @@ std::uint_fast64_t randomInteger(std::uint_fast64_t min,
     return result;
 }
 
-double uniformMinMaxIntegerDistribution(std::uint_fast64_t min,
-                                        std::uint_fast64_t max, double x) {
+double uniformMinMaxIntegerDistribution(
+    std::uint_fast64_t min, std::uint_fast64_t max, double x) {
+
     assert(min <= max);
 
-    if (x < min) {
-        return 0.;
-    }
-
-    if (x >= max) {
-        return 1.;
-    }
-
+    if (x < min) { return 0.; }
+    if (x >= max) { return 1.; }
     return (std::floor(x - min) + 1) / (static_cast<double>(max - min) + 1);
 }
 
 double uniformZeroOneContinuousDistribution(double x) {
-    if (x < 0) {
-        return 0;
-    }
-
-    if (x > 1) {
-        return 1;
-    }
-
+    if (x < 0) { return 0; }
+    if (x > 1) { return 1; }
     return x;
 }
 

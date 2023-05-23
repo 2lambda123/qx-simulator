@@ -14,8 +14,9 @@ struct SimulationError {
 };
 
 std::unique_ptr<qx::core::MixedStateBase>
-executeStringImpl(std::string const &s, Operations const& operations, std::size_t iterations,
-              std::optional<std::uint_fast64_t> seed);
+executeStringImpl(std::string const &s,
+                  Operations const& operations, std::size_t iterations,
+                  std::optional<std::uint_fast64_t> seed);
 
 std::variant<SimulationResult, SimulationError>
 executeString(std::string const &s,
@@ -24,8 +25,9 @@ executeString(std::string const &s,
               std::optional<std::uint_fast64_t> seed = std::nullopt);
 
 std::unique_ptr<qx::core::MixedStateBase>
-executeFileImpl(std::string const &filePath, Operations operations, std::size_t iterations,
-            std::optional<std::uint_fast64_t> seed);
+executeFileImpl(std::string const &filePath,
+                Operations operations, std::size_t iterations,
+                std::optional<std::uint_fast64_t> seed);
 
 std::variant<SimulationResult, SimulationError>
 executeFile(std::string const &filePath,

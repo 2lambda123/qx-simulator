@@ -31,12 +31,18 @@ public:
                 ++rightIt;
             }
 
-            if ((leftIt != left.end() && rightIt == right.end()) || (leftIt == left.end() && rightIt != right.end())) {
+            if ((leftIt != left.end() && rightIt == right.end()) ||
+                (leftIt == left.end() && rightIt != right.end())) {
+
                 CAPTURE("Sizes not equal");
                 return false;
             }
             
-            if (leftIt != left.end() && rightIt != right.end() && (leftIt->first != rightIt->first || utils::isNotNull(leftIt->second - rightIt->second))) {
+            if (leftIt != left.end() &&
+                rightIt != right.end() &&
+                (leftIt->first != rightIt->first ||
+                 utils::isNotNull(leftIt->second - rightIt->second))) {
+
                 CAPTURE(leftIt->first);
                 CAPTURE(rightIt->first);
                 return false;
@@ -91,14 +97,23 @@ TEST_CASE_FIXTURE(MixedStateSimplifierTest, "Triangularize") {
 }
 
 TEST_CASE_FIXTURE(MixedStateSimplifierTest, "Triangularize large matrices") {
-    checkTriangularization(Matrix{{1.1, 2, 3, 4, 5}, {1, 2, 3, 3, 5}, {1, 2, 3, 5, 5}});
-    checkTriangularization(Matrix{{1.1, 2, 3, 4, 5, 1i}, {1, 2, 3, 3, 5, 1i}, {1, 2, 3, 5, 5, 1i}, {12, 584, 84, 84, 51, 9.415i}, {1i, 1i, 1i, 1i, 1i, 1i}});
+    checkTriangularization(Matrix{{1.1, 2, 3, 4, 5},
+                                  {1, 2, 3, 3, 5},
+                                  {1, 2, 3, 5, 5}});
+    checkTriangularization(Matrix{{1.1, 2, 3, 4, 5, 1i},
+                                  {1, 2, 3, 3, 5, 1i},
+                                  {1, 2, 3, 5, 5, 1i},
+                                  {12, 584, 84, 84, 51, 9.415i},
+                                  {1i, 1i, 1i, 1i, 1i, 1i}});
     checkTriangularization(Matrix{
         {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
         {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
     });
     checkTriangularization(Matrix{{1i}, {1i}});
-    checkTriangularization(Matrix{{1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}, {1i}});
+    checkTriangularization(Matrix{{1i}, {1i}, {1i}, {1i}, {1i},
+                                  {1i}, {1i}, {1i}, {1i}, {1i},
+                                  {1i}, {1i}, {1i}, {1i}, {1i},
+                                  {1i}, {1i}, {1i}, {1i}, {1i}, {1i}});
     checkTriangularization(Matrix{
         {1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i},
         {1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i, 1i},

@@ -9,6 +9,15 @@ if(NOT TARGET qx)
 # Loads up the appropriate directories for installing stuff.
 include(GNUInstallDirs)
 
+# Packages
+include(FetchContent)
+FetchContent_Declare(fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG "a0b8a92e3d1532361c2f7feb63babc5c18d00ef2"
+    )
+FetchContent_MakeAvailable(
+    fmt
+)
 
 #=============================================================================#
 # Configuration options                                                       #
@@ -152,13 +161,21 @@ endif()
 # Configure, build, and link dependencies                                     #
 #=============================================================================#
 
-option(LIBQASM_COMPAT "" OFF)
+# I would put this change in another commit
+# option(LIBQASM_COMPAT "" OFF)
+option(LIBQASM_COMPAT "" ON)
 add_subdirectory(deps/libqasm)
-target_link_libraries(qx PUBLIC cqasm)
+target_link_libraries(qx PUBLIC
+    cqasm
+    fmt
+)
 
 set(ABSL_PROPAGATE_CXX_STD ON)
 add_subdirectory(deps/abseil-cpp)
-target_link_libraries(qx PUBLIC absl::btree absl::flat_hash_map)
+target_link_libraries(qx PUBLIC
+    absl::btree
+    absl::flat_hash_map
+)
 
 #=============================================================================#
 # Executables                                                                 #

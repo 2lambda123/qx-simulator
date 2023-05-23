@@ -22,8 +22,19 @@ public:
     }
 
     RandomNumberGenerator(RandomNumberGenerator const &) = delete;
+    // Beware! Assignment operators return a reference
+    RandomNumberGenerator& operator=(RandomNumberGenerator const &) = delete;
 
-    void operator=(RandomNumberGenerator const &) = delete;
+    // I understand you can move, can't you?
+    // Then these need to be defined
+    // https://en.cppreference.com/w/cpp/language/rule_of_three, Rule of five section
+    //      "Because the presence of a user-defined (or = default or = delete declared) destructor,
+    //      copy-constructor, or copy-assignment operator prevents implicit definition
+    //      of the move constructor and the move assignment operator,
+    //      any class for which move semantics are desirable,
+    //      has to declare all five special member functions"
+    RandomNumberGenerator(RandomNumberGenerator &&) = default;
+    RandomNumberGenerator& operator=(RandomNumberGenerator &&) = default;
 
 private:
     RandomNumberGenerator() {
@@ -43,8 +54,14 @@ std::uint_fast64_t randomInteger(std::uint_fast64_t min,
 
 template <typename K>
 absl::btree_map<K, std::uint64_t> randomMultinomial(std::uint64_t N, absl::btree_map<K, double> probabilities) {
-    absl::btree_map<K, double>  probabilitiesDistribution;
+    using BTreeMapKUInt64 = absl::btree_map<K, std::uint64_t>;
+    using BTreeMapKDouble = absl::btree_map<K, double>;
 
+    BTreeMapKDouble probabilitiesDistribution;
+
+    // This is a partial sum
+    // It would be nice to use std::ranges::partial_sum(probabilities, probabilitiesDistribution)
+    // But, unfortunately, that's not working with maps
     double acc = 0.;
     for (auto p: probabilities) {
         acc += p.second;
@@ -52,7 +69,7 @@ absl::btree_map<K, std::uint64_t> randomMultinomial(std::uint64_t N, absl::btree
     }
     assert(utils::isNull(acc - 1));
 
-    absl::btree_map<K, std::uint64_t> result;
+    BTreeMapKUInt64 result;
 
     for (std::uint64_t i = 0; i < N; ++i) {
         auto rand = RandomNumberGenerator::getInstance()();
@@ -68,8 +85,8 @@ absl::btree_map<K, std::uint64_t> randomMultinomial(std::uint64_t N, absl::btree
     return result;
 }
 
-double uniformMinMaxIntegerDistribution(std::uint_fast64_t min,
-                                        std::uint_fast64_t max, double x);
+double uniformMinMaxIntegerDistribution(
+    std::uint_fast64_t min, std::uint_fast64_t max, double x);
 
 double uniformZeroOneContinuousDistribution(double x);
 

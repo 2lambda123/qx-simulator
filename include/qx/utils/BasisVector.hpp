@@ -41,12 +41,11 @@ private:
     static constexpr std::uint64_t BITS_PER_UNIT =
         CHAR_BIT * sizeof(std::uint64_t);
     static_assert(BITS_PER_UNIT == 64);
-
-public:
     static constexpr std::uint64_t STORAGE_SIZE =
         NumberOfBits / BITS_PER_UNIT +
         (NumberOfBits % BITS_PER_UNIT >= 1 ? 1 : 0);
 
+public:
     static constexpr std::uint64_t getNumberOfBits() { return NumberOfBits; }
 
     BasisVector() = default;
@@ -73,13 +72,7 @@ public:
     }
 
     inline bool test(std::span<MeasurementRegisterIndex const> indices) const {
-        for (auto i: indices) {
-            if (!test(i.value)) {
-                return false;
-            }
-        }
-
-        return true;
+        return std::ranges::all_of(indices, [](auto i){ return test(i.value); });
     }
 
     inline void set(std::uint64_t index, bool value = true) {
@@ -87,16 +80,16 @@ public:
         setBit(data[index / BITS_PER_UNIT], index % BITS_PER_UNIT, value);
     }
 
+    inline bool operator==(BasisVector<NumberOfBits> const &other) const {
+        return data == other.data;
+    }
+
     inline bool operator<(BasisVector<NumberOfBits> const &other) const {
-        return LT<STORAGE_SIZE - 1>(other);
+        return LT(other);
     }
 
     inline bool operator<=(BasisVector<NumberOfBits> const &other) const {
-        return data == other.data || LT<STORAGE_SIZE - 1>(other);
-    }
-
-    inline bool operator==(BasisVector<NumberOfBits> const &other) const {
-        return data == other.data;
+        return *this == other || *this < other;
     }
 
     inline void operator^=(BasisVector<NumberOfBits> const &other) {
@@ -138,20 +131,31 @@ public:
     }
 
     std::string toString() const {
-        std::string result;
+        // Possible alternative code
+        std::string result(NumberOfBits, '0');
         for (std::uint64_t i = 0; i < NumberOfBits; ++i) {
-            result += test(NumberOfBits - i - 1) ? '1' : '0';
+            if (test(NumberOfBits - i - 1)) {
+                result[i] =  '1';
+            }
         }
-        assert(result.size() == NumberOfBits);
+        // Or even
+        /*
+        std::ranges::for_each(std::ranges::iota(0, NumberOfBits), [&result](auto i) {
+            if (test(NumberOfBits - i - 1)) {
+                result[i] =  '1';
+            }
+        });
+        */
         return result;
     }
 
 private:
-    template <std::uint64_t Index>
+    template <std::uint64_t StorageSize = STORAGE_SIZE>
     inline bool LT(BasisVector<NumberOfBits> const &other) const {
+        constexpr auto Index = StorageSize - 1;
         if constexpr (Index > 0) {
             if (data[Index] == other.data[Index]) {
-                return LT<Index - 1>(other);
+                return LT<StorageSize - 1>(other);
             }
         }
 

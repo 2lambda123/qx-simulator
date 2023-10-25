@@ -24,8 +24,6 @@
 
 #include "qx/compat.h"
 
-#include <chrono>
-
 #ifdef USE_OPENMP
 #include <omp.h>
 #endif
@@ -87,10 +85,8 @@ enum gate_type_t {
     __measure_y_gate__,
     __measure_y_reg_gate__,
     __ctrl_phase_shift_gate__,
-    __parallel_gate__,
     __display__,
     __display_binary__,
-    __print_str__,
     __bin_ctrl_gate__,
     __lookup_table__,
     __classical_not_gate__,
@@ -154,17 +150,8 @@ class gate {
 public:
     virtual void apply(qu_register &qureg) = 0;
     virtual gate_type_t type() const = 0;
-    virtual std::string micro_code() {
-        return "# unsupported operation : qubit out of range";
-    }
     virtual void dump() = 0;
-    virtual ~gate(){};
-
-    virtual void set_duration(uint64_t d) { duration = d; }
-    virtual uint64_t get_duration() { return duration; }
-
-protected:
-    uint64_t duration = 0;
+    virtual ~gate() = default;
 };
 
 /**
@@ -667,17 +654,6 @@ inline void sqg_apply(cmatrix_t &cm, uint64_t qubit, qu_register &qureg) {
 
 #endif // remove naive tensor computation
 
-enum elementary_operation_t { __x180__, __x90__, __y180__, __y90__, __ym90__ };
-
-static const char *pulse_lt[][5] = {
-    {"  pulse 9,0,0", "  pulse 10,0,0", "  pulse 11,0,0", "  pulse 12,0,0",
-     "  pulse 14,0,0"},
-    {"  pulse 0,9,0", "  pulse 0,10,0", "  pulse 0,11,0", "  pulse 0,12,0",
-     "  pulse 0,14,0"},
-    {"  pulse 0,0,9", "  pulse 0,0,10", "  pulse 0,0,11", "  pulse 0,0,12",
-     "  pulse 0,0,14"},
-};
-
 /**
  * \brief hadamard gate:
  *
@@ -707,23 +683,6 @@ public:
 
         // qureg.set_binary(qubit,__state_unknown__);
         qureg.set_measurement_prediction(qubit, __state_unknown__);
-    }
-
-    std::string micro_code() override {
-        /**
-          | wait 5
-          | y90 q0  --> { pulse 12,0,0 }
-          | wait 5
-          | x180 q0 --> { pulse 9,0,0 }
-         */
-        if (qubit > 2)
-            return "# unsupported operation : qubit out of range";
-        std::stringstream uc;
-        uc << pulse_lt[qubit][__y90__] << "\n";
-        uc << "  wait 4 \n";
-        uc << pulse_lt[qubit][__x180__] << "\n";
-        uc << "  wait 4 \n";
-        return uc.str();
     }
 
     gate_type_t type() const override { return __hadamard_gate__; }
@@ -1129,15 +1088,6 @@ public:
 
     void apply(qu_register &qreg) override {}
 
-    std::string micro_code() override {
-        if (qubit > 2)
-            return "# unsupported operation : qubit out of range";
-        std::stringstream uc;
-        // uc << pulse_lt[qubit][__x180__] << "\n";
-        uc << "  wait 4 \n";
-        return uc.str();
-    }
-
     void dump() override { println("  [-] identity(qubit=", qubit, ")"); }
 
     gate_type_t type() const override { return __identity_gate__; }
@@ -1182,19 +1132,6 @@ public:
         qreg.flip_binary(qubit);
     }
 
-    std::string micro_code() override {
-        /**
-          | wait 5
-          | x180 q0 --> { pulse 9,0,0 }
-         */
-        if (qubit > 2)
-            return "# unsupported operation : qubit out of range";
-        std::stringstream uc;
-        uc << pulse_lt[qubit][__x180__] << "\n";
-        uc << "  wait 4 \n";
-        return uc.str();
-    }
-
     void dump() override { println("  [-] pauli-x(qubit=", qubit, ")"); }
 
     gate_type_t type() const override { return __pauli_x_gate__; }
@@ -1217,19 +1154,6 @@ public:
     void apply(qu_register &qreg) override {
         sqg_apply(m, qubit, qreg);
         qreg.flip_binary(qubit);
-    }
-
-    std::string micro_code() override {
-        /**
-          | wait 5
-          | x180 q0 --> { pulse 9,0,0 }
-         */
-        if (qubit > 2)
-            return "# unsupported operation : qubit out of range";
-        std::stringstream uc;
-        uc << pulse_lt[qubit][__y180__] << "\n";
-        uc << "  wait 4 \n";
-        return uc.str();
     }
 
     void dump() override { println("  [-] pauli-y(qubit=", qubit, ")"); }
@@ -1255,21 +1179,6 @@ public:
         sqg_apply(m, qubit, qreg);
     }
 
-    std::string micro_code() override {
-        /**
-          | wait 5
-          | x180 q0 --> { pulse 9,0,0 }
-         */
-        if (qubit > 2)
-            return "# unsupported operation : qubit out of range";
-        std::stringstream uc;
-        uc << pulse_lt[qubit][__y180__] << "\n";
-        uc << "  wait 4 \n";
-        uc << pulse_lt[qubit][__x180__] << "\n";
-        uc << "  wait 4 \n";
-        return uc.str();
-    }
-
     void dump() override { println("  [-] pauli-z(qubit=", qubit, ")"); }
 
     gate_type_t type() const override { return __pauli_z_gate__; }
@@ -1291,19 +1200,6 @@ public:
 
     void apply(qu_register &qreg) override {
         sqg_apply(m, qubit, qreg);
-    }
-
-    std::string micro_code() override {
-        if (qubit > 2)
-            return "# unsupported operation : qubit out of range";
-        std::stringstream uc;
-        uc << pulse_lt[qubit][__y90__] << "\n";
-        uc << "  wait 4 \n";
-        uc << pulse_lt[qubit][__x90__] << "\n";
-        uc << "  wait 4 \n";
-        uc << pulse_lt[qubit][__ym90__] << "\n";
-        uc << "  wait 4 \n";
-        return uc.str();
     }
 
     void dump() override { println("  [-] phase(qubit=", qubit, ")"); }
@@ -2020,9 +1916,15 @@ class measure final : public gate {
 private:
     uint64_t qubit;
 
-    static bool
-    apply_single(uint64_t qubit, qu_register &qreg) {
-        double f = qreg.rand();
+    // This is to allow unit-testing.
+    std::function<double(qu_register &qreg)> uniform_random_generator;
+
+public:
+    measure(uint64_t qubit, std::function<double(qu_register &qreg)> rand = [](qu_register &qreg) { return qreg.rand(); })
+        : qubit(qubit), uniform_random_generator(rand) {}
+
+    void apply(qu_register &qreg) override {
+        double f = uniform_random_generator(qreg);
         double p = 0;
         bool value = false;
         uint64_t size = qreg.size();
@@ -2030,12 +1932,11 @@ private:
         cvector_t &data = qreg.get_data();
         double length = 0;
 
-        // Basically, this "if" operator determines what to do if we have more
-        // than 64 qubits. It also determines whether to invoke parallel or
-        // sequential computations. As of now, we set parallel execution as the
-        // default one.
-        if (1) // size > 64
+        if (false)
         {
+            // This part is a multithreaded/intrinsics version of the measurement operation, which currently doesn't seem to work,
+            // see issue #114.
+
             static const uint64_t SIZE = 1000;
 
             uint64_t range = (n >> 1);
@@ -2124,16 +2025,6 @@ private:
         qreg.set_measurement_prediction(
             qubit, (value ? __state_1__ : __state_0__));
         qreg.set_measurement(qubit, value);
-
-        return value;
-    }
-
-public:
-    measure(uint64_t qubit)
-        : qubit(qubit) {}
-
-    void apply(qu_register &qreg) override {
-        apply_single(qubit, qreg);
     }
 
     void dump() override {
@@ -2150,8 +2041,13 @@ public:
 };
 
 class measure_all final : public gate {
+private:
+    // This is to allow unit-testing.
+    std::function<double(qu_register &qreg)> uniform_random_generator;
+
 public:
-    measure_all() = default;
+    measure_all(std::function<double(qu_register &qreg)> rand = [](qu_register &qreg) { return qreg.rand(); })
+        : uniform_random_generator(rand) {}
 
     std::bitset<MAX_QB_N> apply_and_get_result(qu_register &qreg) {
         std::bitset<MAX_QB_N> b;
@@ -2159,7 +2055,7 @@ public:
         bool has_found_measured_state = false;
 
         double p = 0;
-        double f = qreg.rand();
+        double f = uniform_random_generator(qreg);
         auto &data = qreg.get_data();
         auto bc = b.to_ulong();
 
@@ -2480,44 +2376,6 @@ public:
 };
 
 /**
- * parallel gates
- */
-class parallel_gates final : public gate {
-public:
-    parallel_gates() = default;
-
-    void apply(qu_register &qreg) override {
-        for (uint64_t i = 0; i < gates.size(); i++)
-            gates[i]->apply(qreg);
-    }
-
-    uint64_t add(std::shared_ptr<gate> gate) {
-        gates.push_back(std::move(gate));
-        return gates.size();
-    }
-
-    bool has(std::function<bool(gate const *)> predicate) {
-        for (auto const &gate : gates) {
-            if (predicate(gate.get())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    void dump() override {
-        println("  [-] parallel_gates (", gates.size(), " gates) : ");
-        for (uint64_t i = 0; i < gates.size(); i++)
-            gates[i]->dump();
-    }
-
-    gate_type_t type() const override { return __parallel_gate__; }
-
-private:
-    std::vector<std::shared_ptr<gate>> gates; // list of the parallel gates
-};
-
-/**
  * prepare the qubits into an arbitrary quantum state
  */
 class prepare final : public gate {
@@ -2561,26 +2419,6 @@ public:
     }
 
     gate_type_t type() const override { return __prepare_gate__; }
-};
-
-/**
- * \brief print  : debug utility
- *     print arbitrary string
- */
-class print_str final : public gate {
-private:
-    std::string str;
-
-public:
-    print_str(std::string &s) : str(s) {}
-
-    void apply(qu_register &qreg) override {
-        println(str);
-    }
-
-    void dump() override { println(" print ", str, "\""); }
-
-    gate_type_t type() const override { return __print_str__; }
 };
 
 } // namespace qx

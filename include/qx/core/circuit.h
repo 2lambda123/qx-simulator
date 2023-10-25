@@ -34,17 +34,6 @@ public:
         : n_qubit(n_qubit), name(std::move(name)), iterations(iterations) {}
 
     /**
-     * \brief micro code generator
-     */
-    std::string micro_code() {
-        std::stringstream uc;
-        uc << "\n" << name << ": \n";
-        for (auto &gate : gates)
-            uc << gate->micro_code();
-        return uc.str();
-    }
-
-    /**
      * \brief destructor
      */
     void clear() { gates.clear(); }
@@ -55,6 +44,13 @@ public:
     void add(std::shared_ptr<gate> gate) {
         // check gate validity before (target/ctrl qubits < n_qubit)
         gates.push_back(std::move(gate));
+    }\
+
+    /**
+     * \brief add all gates in the input vector at the end of the circuit
+     */
+    void add(std::vector<std::shared_ptr<gate>> new_gates) {
+        gates.insert(gates.end(), new_gates.begin(), new_gates.end());
     }
 
     /**
@@ -115,14 +111,6 @@ public:
      * \return gates count
      */
     size_t size() { return gates.size(); }
-
-    /**
-     * insert a gate at the specified
-     * position
-     */
-    void insert(size_t pos, std::shared_ptr<qx::gate> gate) {
-        gates.insert(gates.begin() + pos, gate);
-    }
 
     /**
      * \return the name of the circuit

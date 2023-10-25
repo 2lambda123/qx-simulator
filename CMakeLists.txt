@@ -39,6 +39,14 @@ if(NOT CMAKE_BUILD_TYPE)
     )
 endif()
 
+# Compatibility mode for building binaries that should work on basically any
+# CPU, rather than trying to optimize for the host architecture.
+option(
+    QX_CPU_COMPATIBILITY_MODE
+    "Don't assume availability of instruction set extensions beyond SSE3."
+    OFF
+)
+
 # Whether tests should be built.
 option(
     QX_BUILD_TESTS
@@ -69,6 +77,17 @@ set(
 )
 mark_as_advanced(QX_PYTHON_EXT)
 
+option(
+    QX_USE_OPENMP
+    "Whether OpenMP should be used"
+    ON
+)
+mark_as_advanced(QX_USE_OPENMP)
+
+if(APPLE AND QX_USE_OPENMP)
+    message(WARNING "OpenMP unsupported on MacOS, deactivating")
+    set(QX_USE_OPENMP OFF)
+endif()
 
 #=============================================================================#
 # CMake weirdness and compatibility                                           #
@@ -101,8 +120,7 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-# Everything needs C++11 support.
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -120,7 +138,15 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 # or as a static library based on BUILD_SHARED_LIBS; add_library switches
 # automatically.
 add_library(qx
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/dummy.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/core/register.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/core/linalg.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/core/gaussian.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/xpu/complex.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/xpu/net/active_socket.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/xpu/net/basic_socket.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/xpu/net/socket_exception.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/xpu/net/tcp_server_socket.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/qx/xpu/net/tcp_socket.cc"
 )
 
 # This definition is used to define QX_DECLSPEC for __declspec. More info:
@@ -128,7 +154,11 @@ add_library(qx
 target_compile_definitions(qx PRIVATE BUILDING_QX)
 
 # FIXME: these should be removed or added to a global config header file!
-target_compile_definitions(qx PUBLIC USE_OPENMP XPU_TIMER CG_BC QX_SPARSE_MV_MUL __BUILTIN_LINALG__)
+target_compile_definitions(qx PUBLIC XPU_TIMER CG_BC QX_SPARSE_MV_MUL __BUILTIN_LINALG__)
+
+if(QX_USE_OPENMP)
+    target_compile_definitions(qx PUBLIC USE_OPENMP)
+endif()
 
 # Add the src directory as a private include path and include as the public
 # include path.
@@ -157,16 +187,35 @@ if(NOT MSVC AND "${CMAKE_BUILD_TYPE}" STREQUAL "Release")
 endif()
 
 # Compiler-specific and architectural optimizations.
-if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
-    target_compile_options(qx PUBLIC -march=native)
-elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel")
-    target_compile_options(qx PUBLIC -ipo -xHost -no-prec-div)
-elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-    target_compile_options(qx PUBLIC -msse4.2)
-elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
-    target_compile_options(qx PUBLIC /arch:AVX)
+if(${QX_CPU_COMPATIBILITY_MODE})
+
+    # Only assume x86-64, which has at least SSE3.
+    if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+        target_compile_options(qx PUBLIC -march=nocona)
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+        target_compile_options(qx PUBLIC -march=nocona)
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+        target_compile_options(qx PUBLIC /arch:SSE3)
+    else()
+        message(SEND_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}")
+    endif()
+
 else()
-    message(SEND_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}")
+
+    # Use newer instruction set extensions when supported.
+    if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+        target_compile_options(qx PUBLIC -march=native -mtune=native)
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel")
+        target_compile_options(qx PUBLIC -ipo -xHost -no-prec-div)
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+        target_compile_options(qx PUBLIC -march=native -mtune=native)
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+        # NOTE: this is making assumptions about what the host can do...
+        target_compile_options(qx PUBLIC /arch:AVX)
+    else()
+        message(SEND_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}")
+    endif()
+
 endif()
 
 
@@ -175,8 +224,10 @@ endif()
 #=============================================================================#
 
 # OpenMP
-find_package(OpenMP REQUIRED)
-target_link_libraries(qx PUBLIC OpenMP::OpenMP_CXX)
+if(QX_USE_OPENMP)
+    find_package(OpenMP REQUIRED)
+    target_link_libraries(qx PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 # libqasm
 option(LIBQASM_COMPAT "" ON)
@@ -197,10 +248,6 @@ endif()
 add_executable("qx-simulator" "${CMAKE_CURRENT_SOURCE_DIR}/src/qx-simulator/simulator.cc")
 target_link_libraries(qx-simulator qx)
 
-# qx-simulator-old
-add_executable("qx-simulator-old" "${CMAKE_CURRENT_SOURCE_DIR}/src/qx-simulator-old/simulator_old.cc")
-target_link_libraries(qx-simulator-old qx)
-
 # qx-server
 add_executable("qx-server" "${CMAKE_CURRENT_SOURCE_DIR}/src/qx-server/server.cc")
 target_link_libraries(qx-server qx)
@@ -217,13 +264,15 @@ if(QX_BUILD_TESTS)
     # Convenience function to add a test.
     function(add_qx_test name source workdir)
         add_executable("${name}" "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
-        target_link_libraries("${name}" qx)
+        target_link_libraries("${name}" PRIVATE qx)
         add_test(
             NAME "${name}"
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${workdir}"
             COMMAND "${name}"
         )
     endfunction()
+
+    add_subdirectory(deps/doctest)
 
     # Include the directories containing tests.
     add_subdirectory(tests)
@@ -250,10 +299,6 @@ install(
     TARGETS qx
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-)
-install(
-    TARGETS qx-simulator qx-simulator-old qx-server
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
 install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"

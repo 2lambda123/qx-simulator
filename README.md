@@ -12,7 +12,7 @@ QX should work on the following platforms.
 
 For compilation, you need the following things.
 
- - A C++ compiler with C++11 and OpenMP support (GCC for Linux, LLVM/clang for
+ - A C++ compiler with C++14 and OpenMP support (GCC for Linux, LLVM/clang for
    MacOS, MSVC 2015 with update 3 or above for Windows)
  - cmake (>= 3.13)
  - flex (>= 2.6.1)
@@ -21,7 +21,7 @@ For compilation, you need the following things.
 For the QXelarator Python module, you also need the following.
 
  - swig (Linux/MacOS >= 3.0.12; Windows >= 4.0.0)
- - python (>= 3.5) [for python interface to QX]
+ - python (>= 3.7) [for python interface to QX]
 
 ## Installation
 
@@ -49,10 +49,20 @@ which is perhaps the easiest way to start simulating quantum circuits.
 
 `qxelarator` mainly provides the following API calls:
 
-    qx.set('basic.qasm')            # set the required qasm to be executed on qx
-    qx.execute()                    # execute
-    qx.get_measurement_outcome(0)   # get measurement results from qubit 'n' as bool
-    get_state()                     # get quantum register state as string
+    qx.set('basic.qasm')                    # set the required qasm to be executed on qx
+    qx.set_json_output_path('output.json)   # set the path to the output JSON, containing
+                                                either complex amplitude (single shot) or
+                                                measurement register averaging
+    qx.execute()                            # execute the circuit once, print the final quantum
+                                                state
+    qx.execute(100)                         # execute the circuit 100 times, print measurement
+                                                register averaging
+    qx.get_measurement_outcome(0)           # get measurement results from qubit 'n' as bool
+                                                note: in the case of repeated execution, the very
+                                                last value of the measurement register is returned
+    qx.get_state()                          # get quantum register state as string
+                                                note: in the case of repeated execution, the very
+                                                last quantum state is returned
 
 
 ### Installation
@@ -67,8 +77,12 @@ Alternatively, you can build and install from source using
 
     python3 -m pip install -v -e .
 
+The latter might run faster on your machine, as it allows the compiler to
+optimize for your particular CPU. The PyPI binaries assume that only SSE3 is
+available.
+
 ## Licensing
 
 QX is licensed under the Apache License, Version 2.0. See
-[LICENSE](https://github.com/QE-Lab/qx-simulator/blob/master/LICENSE) for the full
+[LICENSE](https://github.com/QuTech-Delft/qx-simulator/blob/master/LICENSE) for the full
 license text.
